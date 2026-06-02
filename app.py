@@ -44,12 +44,21 @@ html, body, [class*="css"] {
 
 /* SIDEBAR ASLI STREAMLIT */
 section[data-testid="stSidebar"] {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: translateX(0px) !important;
     background: #050505 !important;
     border-right: 1px solid #111827 !important;
     width: 290px !important;
+    min-width: 290px !important;
+    max-width: 290px !important;
 }
 
 section[data-testid="stSidebar"] > div {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     background: #050505 !important;
     padding: 24px 18px !important;
 }
