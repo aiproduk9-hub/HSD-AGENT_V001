@@ -1,5 +1,4 @@
 import streamlit as st
-st.error("TES APP BARU KEBACA")
 import tempfile
 import os
 import datetime
@@ -16,7 +15,7 @@ st.set_page_config(
     layout='wide',
     initial_sidebar_state='expanded'
 )
-
+st.error("TES APP BARU KEBACA")
 
 # =========================
 # STYLE
