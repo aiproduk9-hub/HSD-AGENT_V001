@@ -9,9 +9,14 @@ from zoneinfo import ZoneInfo
 st.set_page_config(
     page_title="HSD AGENT",
     page_icon="🧄",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+
+# =========================
+# STYLE
+# =========================
 
 st.markdown("""
 <style>
@@ -31,17 +36,82 @@ html, body, [class*="css"] {
 }
 
 .block-container {
-    padding-top: 24px !important;
-    padding-left: 28px !important;
-    padding-right: 28px !important;
+    padding-top: 28px !important;
+    padding-left: 36px !important;
+    padding-right: 36px !important;
     max-width: 100% !important;
 }
 
+/* SIDEBAR ASLI STREAMLIT */
 section[data-testid="stSidebar"] {
-    display: none !important;
+    background: #050505 !important;
+    border-right: 1px solid #111827 !important;
+    width: 290px !important;
 }
 
-/* BUTTON */
+section[data-testid="stSidebar"] > div {
+    background: #050505 !important;
+    padding: 24px 18px !important;
+}
+
+section[data-testid="stSidebar"] * {
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+.sidebar-logo {
+    width: 66px;
+    height: 66px;
+    background: #F5A623;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 34px;
+    margin-bottom: 16px;
+}
+
+.sidebar-title {
+    color: #FFFFFF;
+    font-size: 24px;
+    font-weight: 900;
+    line-height: 1.05;
+    margin-bottom: 8px;
+}
+
+.sidebar-subtitle {
+    color: #9CA3AF;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 14px;
+}
+
+.sidebar-role {
+    display: inline-block;
+    background: #F5A623;
+    color: #FFFFFF;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 900;
+    margin-bottom: 26px;
+}
+
+.sidebar-menu-title {
+    color: #6B7280;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    margin: 18px 0 10px;
+}
+
+.sidebar-note {
+    color: #6B7280;
+    font-size: 11px;
+    line-height: 1.6;
+    margin-top: 24px;
+}
+
+/* BUTTON UMUM */
 .stButton > button {
     border-radius: 12px !important;
     border: none !important;
@@ -61,9 +131,39 @@ div[data-testid="stButton"] > button[kind="primary"] {
     font-size: 14px !important;
 }
 
+/* BUTTON DI SIDEBAR */
+section[data-testid="stSidebar"] .stButton > button {
+    background: #111827 !important;
+    color: #E5E7EB !important;
+    border: 1px solid #1F2937 !important;
+    border-radius: 14px !important;
+    padding: 13px 14px !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    margin-bottom: 6px !important;
+}
+
+section[data-testid="stSidebar"] .stButton > button:hover {
+    background: #1F2937 !important;
+    color: #FFFFFF !important;
+    transform: none !important;
+}
+
+section[data-testid="stSidebar"] div[data-testid="stButton"] > button[kind="primary"] {
+    background: #F5A623 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #F5A623 !important;
+}
+
+section[data-testid="stSidebar"] .stButton > button:disabled {
+    background: #0B0B0D !important;
+    color: #4B5563 !important;
+    border: 1px solid #111827 !important;
+}
+
 /* CARD */
 .card {
-    background: white;
+    background: #FFFFFF;
     border: 1px solid #E5E7EB;
     border-radius: 18px;
     padding: 22px;
@@ -72,133 +172,12 @@ div[data-testid="stButton"] > button[kind="primary"] {
 }
 
 .top-card {
-    background: white;
+    background: #FFFFFF;
     border: 1px solid #E5E7EB;
     border-radius: 18px;
     padding: 18px 22px;
     margin-bottom: 18px;
     box-shadow: 0 8px 26px rgba(15, 23, 42, 0.04);
-}
-
-/* CUSTOM SIDEBAR */
-.sidebar-custom {
-    background: #050505;
-    border-radius: 24px;
-    min-height: 86vh;
-    padding: 22px 18px;
-    box-shadow: 0 18px 48px rgba(0,0,0,.18);
-    position: sticky;
-    top: 24px;
-}
-
-.logo-box {
-    width: 64px;
-    height: 64px;
-    background: #F5A623;
-    border-radius: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 34px;
-    margin-bottom: 14px;
-}
-
-.sidebar-title {
-    color: white;
-    font-size: 22px;
-    font-weight: 900;
-    line-height: 1.1;
-    margin-bottom: 6px;
-}
-
-.sidebar-sub {
-    color: #9CA3AF;
-    font-size: 12px;
-    font-weight: 600;
-    margin-bottom: 14px;
-}
-
-.role-pill {
-    background: #F5A623;
-    color: white;
-    display: inline-block;
-    padding: 5px 10px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 900;
-    margin-bottom: 20px;
-}
-
-.side-menu-title {
-    color: #6B7280;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 1px;
-    margin: 18px 0 8px;
-}
-
-.side-note {
-    color: #6B7280;
-    font-size: 11px;
-    line-height: 1.6;
-    margin-top: 24px;
-}
-
-.sidebar-menu-link {
-    display: block;
-    background: #111827;
-    color: #E5E7EB !important;
-    text-decoration: none !important;
-    border: 1px solid #1F2937;
-    border-radius: 14px;
-    padding: 13px 14px;
-    margin-bottom: 10px;
-    font-size: 14px;
-    font-weight: 800;
-}
-
-.sidebar-menu-link:hover {
-    background: #1F2937;
-    color: #FFFFFF !important;
-}
-
-.sidebar-menu-active {
-    background: #F5A623 !important;
-    color: white !important;
-    border: 1px solid #F5A623 !important;
-}
-
-.sidebar-menu-lock {
-    display: block;
-    background: #0B0B0D;
-    color: #4B5563 !important;
-    text-decoration: none !important;
-    border: 1px solid #111827;
-    border-radius: 14px;
-    padding: 13px 14px;
-    margin-bottom: 10px;
-    font-size: 14px;
-    font-weight: 800;
-    pointer-events: none;
-}
-
-.sidebar-logout {
-    display: block;
-    background: #111827;
-    color: #E5E7EB !important;
-    text-decoration: none !important;
-    border: 1px solid #1F2937;
-    border-radius: 14px;
-    padding: 13px 14px;
-    margin-top: 10px;
-    font-size: 14px;
-    font-weight: 800;
-}
-
-.sidebar-logout:hover {
-    background: #7F1D1D;
-    color: white !important;
-    border-color: #7F1D1D;
 }
 
 /* FILE UPLOADER */
@@ -215,7 +194,7 @@ div[data-testid="stButton"] > button[kind="primary"] {
 
 [data-testid="stFileUploader"] button {
     background: #020617 !important;
-    color: white !important;
+    color: #FFFFFF !important;
     border: 1px solid #374151 !important;
     border-radius: 10px !important;
 }
@@ -225,7 +204,6 @@ div[data-testid="stButton"] > button[kind="primary"] {
     border-radius: 14px !important;
 }
 
-/* SLOT */
 .slot-hsd {
     background: #EFF6FF;
     border: 1.5px dashed #60A5FA;
@@ -316,6 +294,10 @@ div[data-testid="stButton"] > button[kind="primary"] {
 """, unsafe_allow_html=True)
 
 
+# =========================
+# ROLE
+# =========================
+
 ROLES = {
     "gudang": {
         "pin": "1234",
@@ -372,28 +354,6 @@ now = datetime.datetime.now(ZoneInfo("Asia/Jakarta"))
 
 
 # =========================
-# URL PARAMS UNTUK MENU HTML
-# =========================
-
-params = st.query_params
-
-if "page" in params:
-    page_from_url = params.get("page")
-
-    if page_from_url in ["gudang", "konten", "live"]:
-        st.session_state.page = page_from_url
-
-if "logout" in params:
-    st.session_state.ok = False
-    st.session_state.role = None
-    st.session_state.label = None
-    st.session_state.access = []
-    st.session_state.page = "gudang"
-    st.query_params.clear()
-    st.rerun()
-
-
-# =========================
 # LOGIN
 # =========================
 
@@ -436,7 +396,6 @@ if not st.session_state.ok:
                 st.session_state.label = label
                 st.session_state.access = access
                 st.session_state.page = access[0] if access else "gudang"
-                st.query_params.clear()
                 st.rerun()
             else:
                 st.error("PIN salah.")
@@ -463,335 +422,357 @@ if not st.session_state.ok:
 
 
 # =========================
-# MAIN LAYOUT
+# SIDEBAR
 # =========================
 
-side, main = st.columns([1.05, 5.2], gap="large")
+with st.sidebar:
+    st.markdown("""
+    <div class="sidebar-logo">🧄</div>
+    <div class="sidebar-title">HSD<br>AGENT</div>
+    <div class="sidebar-subtitle">Sistem Operasional</div>
+    """, unsafe_allow_html=True)
 
-
-with side:
-    current_page = st.session_state.page
-
-    def menu_class(page_name):
-        if current_page == page_name:
-            return "sidebar-menu-link sidebar-menu-active"
-        return "sidebar-menu-link"
-
-    gudang_menu = (
-        f'<a class="{menu_class("gudang")}" href="?page=gudang">📦 Gudang</a>'
-        if can(st.session_state.role, "gudang")
-        else '<div class="sidebar-menu-lock">🔒 Gudang</div>'
+    st.markdown(
+        f'<div class="sidebar-role">{st.session_state.label}</div>',
+        unsafe_allow_html=True
     )
 
-    konten_menu = (
-        f'<a class="{menu_class("konten")}" href="?page=konten">🎬 Konten</a>'
-        if can(st.session_state.role, "konten")
-        else '<div class="sidebar-menu-lock">🔒 Konten</div>'
-    )
+    st.markdown('<div class="sidebar-menu-title">MENU UTAMA</div>', unsafe_allow_html=True)
 
-    live_menu = (
-        f'<a class="{menu_class("live")}" href="?page=live">📡 Live</a>'
-        if can(st.session_state.role, "live")
-        else '<div class="sidebar-menu-lock">🔒 Live</div>'
-    )
+    if can(st.session_state.role, "gudang"):
+        if st.button(
+            "📦  Gudang",
+            use_container_width=True,
+            type="primary" if st.session_state.page == "gudang" else "secondary",
+            key="menu_gudang"
+        ):
+            st.session_state.page = "gudang"
+            st.rerun()
+    else:
+        st.button("🔒  Gudang", use_container_width=True, disabled=True, key="lock_gudang")
 
-    st.markdown(f"""
-    <div class="sidebar-custom">
-        <div class="logo-box">🧄</div>
-        <div class="sidebar-title">HSD<br>AGENT</div>
-        <div class="sidebar-sub">Sistem Operasional</div>
-        <div class="role-pill">{st.session_state.label}</div>
+    if can(st.session_state.role, "konten"):
+        if st.button(
+            "🎬  Konten",
+            use_container_width=True,
+            type="primary" if st.session_state.page == "konten" else "secondary",
+            key="menu_konten"
+        ):
+            st.session_state.page = "konten"
+            st.rerun()
+    else:
+        st.button("🔒  Konten", use_container_width=True, disabled=True, key="lock_konten")
 
-        <div class="side-menu-title">MENU UTAMA</div>
+    if can(st.session_state.role, "live"):
+        if st.button(
+            "📡  Live",
+            use_container_width=True,
+            type="primary" if st.session_state.page == "live" else "secondary",
+            key="menu_live"
+        ):
+            st.session_state.page = "live"
+            st.rerun()
+    else:
+        st.button("🔒  Live", use_container_width=True, disabled=True, key="lock_live")
 
-        {gudang_menu}
-        {konten_menu}
-        {live_menu}
+    st.markdown('<div class="sidebar-menu-title">AKUN</div>', unsafe_allow_html=True)
 
-        <div class="side-menu-title">AKUN</div>
-        <a class="sidebar-logout" href="?logout=1">🚪 Keluar</a>
+    if st.button("🚪  Keluar", use_container_width=True, key="logout_btn"):
+        st.session_state.ok = False
+        st.session_state.role = None
+        st.session_state.label = None
+        st.session_state.access = []
+        st.session_state.page = "gudang"
+        st.rerun()
 
-        <div class="side-note">
-            HSD Agent v2<br>
-            Gudang · Konten · Live<br><br>
-            Desain custom sidebar aktif.
-        </div>
+    st.markdown("""
+    <div class="sidebar-note">
+        HSD Agent v2<br>
+        Gudang · Konten · Live<br><br>
+        Sidebar resmi aktif.
     </div>
     """, unsafe_allow_html=True)
 
 
-with main:
-    st.markdown(f"""
-    <div class="top-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div>
-                <div style="font-size:22px;font-weight:900;color:#111827;">🧄 HSD AGENT</div>
-                <div style="color:#9CA3AF;font-size:12px;font-weight:700;margin-top:4px;">
-                    {st.session_state.label}
-                </div>
+# =========================
+# TOP BAR
+# =========================
+
+st.markdown(f"""
+<div class="top-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+            <div style="font-size:22px;font-weight:900;color:#111827;">🧄 HSD AGENT</div>
+            <div style="color:#9CA3AF;font-size:12px;font-weight:700;margin-top:4px;">
+                {st.session_state.label}
             </div>
-            <div style="text-align:right;color:#6B7280;font-size:12px;font-weight:700;">
-                {now.strftime('%A, %d %B %Y')}<br>
-                {now.strftime('%H:%M:%S WIB')}
-            </div>
+        </div>
+        <div style="text-align:right;color:#6B7280;font-size:12px;font-weight:700;">
+            {now.strftime('%A, %d %B %Y')}<br>
+            {now.strftime('%H:%M:%S WIB')}
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+
+page = st.session_state.page
+
+
+# =========================
+# PAGE GUDANG
+# =========================
+
+if page == "gudang":
+    if not can(st.session_state.role, "gudang"):
+        st.error("Akses ditolak.")
+        st.stop()
+
+    st.markdown("""
+    <div class="card">
+        <div style="font-size:18px;font-weight:900;color:#111827;">📦 Upload PDF Resi</div>
+        <div style="font-size:13px;color:#6B7280;font-weight:600;margin-top:6px;">
+            Mode PDF besar aktif. Cocok untuk ribuan resi dalam 1 PDF.
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    page = st.session_state.page
+    uploads = {}
 
-    # =========================
-    # PAGE GUDANG
-    # =========================
+    st.markdown("""
+    <div class="section-title">
+        <span class="badge-hsd">HSD</span>
+        <span style="color:#2563EB;font-size:18px;font-weight:900;">Botol Hitam</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-    if page == "gudang":
-        if not can(st.session_state.role, "gudang"):
-            st.error("Akses ditolak.")
-            st.stop()
+    c1, c2, c3 = st.columns(3)
 
-        st.markdown("""
-        <div class="card">
-            <div style="font-size:18px;font-weight:900;color:#111827;">📦 Upload PDF Resi</div>
-            <div style="font-size:13px;color:#6B7280;font-weight:600;margin-top:6px;">
-                Mode PDF besar aktif. Cocok untuk ribuan resi dalam 1 PDF.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        uploads = {}
-
-        st.markdown("""
-        <div class="section-title">
-            <span class="badge-hsd">HSD</span>
-            <span style="color:#2563EB;font-size:18px;font-weight:900;">Botol Hitam</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        c1, c2, c3 = st.columns(3)
-
-        for col, waktu, key in [
-            (c1, "PAGI", "hsd_p"),
-            (c2, "SIANG", "hsd_s"),
-            (c3, "SORE", "hsd_r"),
-        ]:
-            with col:
-                st.markdown(
-                    f'<div style="font-size:11px;font-weight:900;color:#374151;margin-bottom:6px;">{waktu}</div>',
-                    unsafe_allow_html=True
-                )
-
-                f = st.file_uploader(
-                    f"HSD {waktu}",
-                    type="pdf",
-                    key=key,
-                    label_visibility="collapsed"
-                )
-
-                uploads[("HSD", waktu)] = f
-
-                if f:
-                    st.markdown(
-                        f'<div class="slot-done">✅ {f.name[:26]}</div>',
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown(
-                        '<div class="slot-hsd">📄 Pilih PDF</div>',
-                        unsafe_allow_html=True
-                    )
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class="section-title">
-            <span class="badge-hss">HSS</span>
-            <span style="color:#F97316;font-size:18px;font-weight:900;">Botol Merah</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        c4, c5, c6 = st.columns(3)
-
-        for col, waktu, key in [
-            (c4, "PAGI", "hss_p"),
-            (c5, "SIANG", "hss_s"),
-            (c6, "SORE", "hss_r"),
-        ]:
-            with col:
-                st.markdown(
-                    f'<div style="font-size:11px;font-weight:900;color:#374151;margin-bottom:6px;">{waktu}</div>',
-                    unsafe_allow_html=True
-                )
-
-                f = st.file_uploader(
-                    f"HSS {waktu}",
-                    type="pdf",
-                    key=key,
-                    label_visibility="collapsed"
-                )
-
-                uploads[("HSS", waktu)] = f
-
-                if f:
-                    st.markdown(
-                        f'<div class="slot-done">✅ {f.name[:26]}</div>',
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown(
-                        '<div class="slot-hss">📄 Pilih PDF</div>',
-                        unsafe_allow_html=True
-                    )
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        active = [
-            (akun, waktu, file)
-            for (akun, waktu), file in uploads.items()
-            if file
-        ]
-
-        b1, b2 = st.columns([2, 3])
-
-        with b1:
-            proses = st.button(
-                "⚡ PROSES PDF → EXCEL",
-                type="primary",
-                use_container_width=True,
-                disabled=not active
+    for col, waktu, key in [
+        (c1, "PAGI", "hsd_p"),
+        (c2, "SIANG", "hsd_s"),
+        (c3, "SORE", "hsd_r"),
+    ]:
+        with col:
+            st.markdown(
+                f'<div style="font-size:11px;font-weight:900;color:#374151;margin-bottom:6px;">{waktu}</div>',
+                unsafe_allow_html=True
             )
 
-        with b2:
-            if active:
-                st.success(f"{len(active)} PDF siap diproses")
+            f = st.file_uploader(
+                f"HSD {waktu}",
+                type="pdf",
+                key=key,
+                label_visibility="collapsed"
+            )
+
+            uploads[("HSD", waktu)] = f
+
+            if f:
+                st.markdown(
+                    f'<div class="slot-done">✅ {f.name[:26]}</div>',
+                    unsafe_allow_html=True
+                )
             else:
-                st.info("Upload minimal 1 PDF")
-
-        if proses and active:
-            from parser import process_pdf
-            from excel_writer import write_excel_multi
-
-            all_rows = []
-            progress = st.progress(0, "Memulai...")
-            log_box = st.empty()
-            logs = []
-
-            for fi, (akun, waktu, file) in enumerate(active):
-                file_size_mb = getattr(file, "size", 0) / (1024 * 1024)
-
-                logs.append(f"📄 **{akun} {waktu}** — `{file.name}` ({file_size_mb:.1f} MB)")
-                log_box.markdown("\n\n".join(logs))
-
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(file.getbuffer())
-                    temp_pdf_path = tmp.name
-
-                def prog(cur, tot, fi=fi, total_files=len(active), akun=akun, waktu=waktu):
-                    if tot and tot > 0:
-                        percent = int((fi / total_files + cur / tot / total_files) * 100)
-                    else:
-                        percent = int((fi / total_files) * 100)
-
-                    progress.progress(
-                        min(percent, 100),
-                        text=f"{akun} {waktu}: halaman {cur}/{tot}"
-                    )
-
-                try:
-                    rows, _ = process_pdf(temp_pdf_path, progress_callback=prog)
-
-                    for r in rows:
-                        r["akun"] = akun
-                        r["waktu"] = waktu
-
-                    all_rows.extend(rows)
-
-                    logs.append(f"✅ {akun} {waktu}: **{len(rows)} baris**")
-                    log_box.markdown("\n\n".join(logs))
-
-                except Exception as e:
-                    logs.append(f"❌ {akun} {waktu}: {e}")
-                    log_box.markdown("\n\n".join(logs))
-
-                finally:
-                    if os.path.exists(temp_pdf_path):
-                        os.unlink(temp_pdf_path)
-
-            if all_rows:
-                progress.progress(95, "Membuat Excel...")
-
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-                    temp_xlsx_path = tmp.name
-
-                write_excel_multi(all_rows, temp_xlsx_path)
-
-                out = BytesIO()
-
-                with open(temp_xlsx_path, "rb") as f:
-                    out.write(f.read())
-
-                if os.path.exists(temp_xlsx_path):
-                    os.unlink(temp_xlsx_path)
-
-                out.seek(0)
-                progress.progress(100, "Selesai!")
-
-                total_resi = len(set(r.get("no_resi") for r in all_rows))
-                total_qty = sum(int(r.get("qty", 0) or 0) for r in all_rows)
-
-                m1, m2, m3, m4 = st.columns(4)
-
-                for col, val, label in [
-                    (m1, total_resi, "Total Resi"),
-                    (m2, total_qty, "Total Qty"),
-                    (m3, len(active), "PDF Diproses"),
-                    (m4, now.strftime("%H:%M"), "Waktu"),
-                ]:
-                    with col:
-                        st.markdown(f"""
-                        <div class="metric-box">
-                            <div class="metric-val">{val}</div>
-                            <div class="metric-lbl">{label}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                st.download_button(
-                    "📥 Download Excel Rekap",
-                    data=out,
-                    file_name=f"HSD_REKAP_{now.strftime('%Y%m%d_%H%M')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                    type="primary"
+                st.markdown(
+                    '<div class="slot-hsd">📄 Pilih PDF</div>',
+                    unsafe_allow_html=True
                 )
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="section-title">
+        <span class="badge-hss">HSS</span>
+        <span style="color:#F97316;font-size:18px;font-weight:900;">Botol Merah</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c4, c5, c6 = st.columns(3)
+
+    for col, waktu, key in [
+        (c4, "PAGI", "hss_p"),
+        (c5, "SIANG", "hss_s"),
+        (c6, "SORE", "hss_r"),
+    ]:
+        with col:
+            st.markdown(
+                f'<div style="font-size:11px;font-weight:900;color:#374151;margin-bottom:6px;">{waktu}</div>',
+                unsafe_allow_html=True
+            )
+
+            f = st.file_uploader(
+                f"HSS {waktu}",
+                type="pdf",
+                key=key,
+                label_visibility="collapsed"
+            )
+
+            uploads[("HSS", waktu)] = f
+
+            if f:
+                st.markdown(
+                    f'<div class="slot-done">✅ {f.name[:26]}</div>',
+                    unsafe_allow_html=True
+                )
             else:
-                st.error("Tidak ada data yang berhasil dibaca dari PDF.")
+                st.markdown(
+                    '<div class="slot-hss">📄 Pilih PDF</div>',
+                    unsafe_allow_html=True
+                )
 
-    # =========================
-    # PAGE KONTEN
-    # =========================
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    elif page == "konten":
-        st.markdown("""
-        <div class="card">
-            <div style="font-size:22px;font-weight:900;color:#111827;">🎬 Divisi Konten</div>
-            <p style="color:#6B7280;font-size:14px;font-weight:600;">
-                Fitur ini segera hadir. Nanti bisa dibuat untuk jadwal konten, ide konten, script, dan arsip video.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+    active = [
+        (akun, waktu, file)
+        for (akun, waktu), file in uploads.items()
+        if file
+    ]
 
-    # =========================
-    # PAGE LIVE
-    # =========================
+    b1, b2 = st.columns([2, 3])
 
-    elif page == "live":
-        st.markdown("""
-        <div class="card">
-            <div style="font-size:22px;font-weight:900;color:#111827;">📡 Divisi Live</div>
-            <p style="color:#6B7280;font-size:14px;font-weight:600;">
-                Fitur ini segera hadir. Nanti bisa dibuat untuk jadwal live, laporan live, host, dan performa penjualan.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+    with b1:
+        proses = st.button(
+            "⚡ PROSES PDF → EXCEL",
+            type="primary",
+            use_container_width=True,
+            disabled=not active
+        )
+
+    with b2:
+        if active:
+            st.success(f"{len(active)} PDF siap diproses")
+        else:
+            st.info("Upload minimal 1 PDF")
+
+    if proses and active:
+        from parser import process_pdf
+        from excel_writer import write_excel_multi
+
+        all_rows = []
+        progress = st.progress(0, "Memulai...")
+        log_box = st.empty()
+        logs = []
+
+        for fi, (akun, waktu, file) in enumerate(active):
+            file_size_mb = getattr(file, "size", 0) / (1024 * 1024)
+
+            logs.append(f"📄 **{akun} {waktu}** — `{file.name}` ({file_size_mb:.1f} MB)")
+            log_box.markdown("\n\n".join(logs))
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(file.getbuffer())
+                temp_pdf_path = tmp.name
+
+            def prog(cur, tot, fi=fi, total_files=len(active), akun=akun, waktu=waktu):
+                if tot and tot > 0:
+                    percent = int((fi / total_files + cur / tot / total_files) * 100)
+                else:
+                    percent = int((fi / total_files) * 100)
+
+                progress.progress(
+                    min(percent, 100),
+                    text=f"{akun} {waktu}: halaman {cur}/{tot}"
+                )
+
+            try:
+                rows, _ = process_pdf(temp_pdf_path, progress_callback=prog)
+
+                for r in rows:
+                    r["akun"] = akun
+                    r["waktu"] = waktu
+
+                all_rows.extend(rows)
+
+                logs.append(f"✅ {akun} {waktu}: **{len(rows)} baris**")
+                log_box.markdown("\n\n".join(logs))
+
+            except Exception as e:
+                logs.append(f"❌ {akun} {waktu}: {e}")
+                log_box.markdown("\n\n".join(logs))
+
+            finally:
+                if os.path.exists(temp_pdf_path):
+                    os.unlink(temp_pdf_path)
+
+        if all_rows:
+            progress.progress(95, "Membuat Excel...")
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+                temp_xlsx_path = tmp.name
+
+            write_excel_multi(all_rows, temp_xlsx_path)
+
+            out = BytesIO()
+
+            with open(temp_xlsx_path, "rb") as f:
+                out.write(f.read())
+
+            if os.path.exists(temp_xlsx_path):
+                os.unlink(temp_xlsx_path)
+
+            out.seek(0)
+            progress.progress(100, "Selesai!")
+
+            total_resi = len(set(r.get("no_resi") for r in all_rows))
+            total_qty = sum(int(r.get("qty", 0) or 0) for r in all_rows)
+
+            m1, m2, m3, m4 = st.columns(4)
+
+            for col, val, label in [
+                (m1, total_resi, "Total Resi"),
+                (m2, total_qty, "Total Qty"),
+                (m3, len(active), "PDF Diproses"),
+                (m4, now.strftime("%H:%M"), "Waktu"),
+            ]:
+                with col:
+                    st.markdown(f"""
+                    <div class="metric-box">
+                        <div class="metric-val">{val}</div>
+                        <div class="metric-lbl">{label}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            st.download_button(
+                "📥 Download Excel Rekap",
+                data=out,
+                file_name=f"HSD_REKAP_{now.strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                type="primary"
+            )
+
+        else:
+            st.error("Tidak ada data yang berhasil dibaca dari PDF.")
+
+
+# =========================
+# PAGE KONTEN
+# =========================
+
+elif page == "konten":
+    st.markdown("""
+    <div class="card">
+        <div style="font-size:22px;font-weight:900;color:#111827;">🎬 Divisi Konten</div>
+        <p style="color:#6B7280;font-size:14px;font-weight:600;">
+            Fitur ini segera hadir. Nanti bisa dibuat untuk jadwal konten, ide konten, script, dan arsip video.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# =========================
+# PAGE LIVE
+# =========================
+
+elif page == "live":
+    st.markdown("""
+    <div class="card">
+        <div style="font-size:22px;font-weight:900;color:#111827;">📡 Divisi Live</div>
+        <p style="color:#6B7280;font-size:14px;font-weight:600;">
+            Fitur ini segera hadir. Nanti bisa dibuat untuk jadwal live, laporan live, host, dan performa penjualan.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
