@@ -127,7 +127,7 @@ def write_excel(rows,output_path):
 
     row_num=2; no_urut=1
     MULTI_COLORS=['FFF9C4','E8F5E9','E3F2FD','FCE4D6','F3E5F5','E0F7FA']
-    single_colors=iter(['F5F5F5','FFFFFF']*300)
+    single_colors=['F5F5F5','FFFFFF']
     mc_idx=0
 
     for resi,items in resi_groups.items():
@@ -151,7 +151,7 @@ def write_excel(rows,output_path):
                     bottom=Side(style='medium',color='888888'))
         else:
             r=items[0]
-            clr=next(single_colors)
+            clr=single_colors[i%2]
             nama=(r['nama_produk'] or '').rstrip(',').strip()
             R(ws4,row_num,[no_urut,r['no_resi'],r['courier'],
                            nama,r['sku'],r['variasi'] or '-',r['qty'],''],
@@ -258,8 +258,162 @@ def write_excel_multi(rows, output_path):
 
     WAKTU_ORDER = ['PAGI','SIANG','SORE']
 
+    # ── SHEET 0: STOK FISIK HARI INI — sheet paling penting untuk gudang ─────
+    ws0 = wb.create_sheet("STOK FISIK HARI INI", 0)
+    ws0.sheet_tab_color = "F5A623"
+
+    # Setup kolom
+    ws0.column_dimensions['A'].width = 36
+    ws0.column_dimensions['B'].width = 18
+    ws0.column_dimensions['C'].width = 18
+    ws0.column_dimensions['D'].width = 22
+
+    BIG_TITLE = PatternFill('solid',fgColor='1B1F2E')
+    BIG_FONT  = Font(bold=True,color='FFFFFF',size=14,name='Calibri')
+    SEC_FILL  = PatternFill('solid',fgColor='F5A623')
+    SEC_FONT  = Font(bold=True,color='FFFFFF',size=11,name='Calibri')
+    ROW_FILL1 = PatternFill('solid',fgColor='FFFFFF')
+    ROW_FILL2 = PatternFill('solid',fgColor='F8F6F1')
+    BIG_NUM   = Font(bold=True,size=16,name='Calibri',color='1B1F2E')
+    LABEL_F   = Font(size=10,name='Calibri',color='6B7280')
+    NOTE_F    = Font(italic=True,size=9,name='Calibri',color='9CA3AF')
+
+    # Tanggal
+    from datetime import datetime
+    tgl = datetime.now().strftime('%d %B %Y')
+
+    # Judul utama
+    ws0.merge_cells('A1:D1')
+    t=ws0.cell(row=1,column=1,value=f'STOK FISIK YANG HARUS DISIAPKAN — {tgl}')
+    t.fill=BIG_TITLE; t.font=BIG_FONT; t.alignment=C2; t.border=BD2
+    ws0.row_dimensions[1].height=36
+
+    # Hitung stok per produk
+    from collections import defaultdict
+    stok = defaultdict(int)
+    for r in rows:
+        stok[r['nama_produk']] += r['qty']
+
+    # Hitung kardus
+    resi_map_stok = defaultdict(list)
+    for r in rows: resi_map_stok[r['no_resi']].append(r)
+
+    kardus_single = sum(1 for items in resi_map_stok.values() if len(items)==1 and sum(i['qty'] for i in items)==1)
+    kardus_multi_qty = sum(1 for items in resi_map_stok.values() if len(items)==1 and sum(i['qty'] for i in items)>1)
+    kardus_campur = sum(1 for items in resi_map_stok.values() if len(items)>1)
+    total_kardus = len(resi_map_stok)
+    total_produk = sum(stok.values())
+
+    # ── BAGIAN 1: Ringkasan Cepat ──────────────────────────────────────────────
+    ws0.merge_cells('A2:D2')
+    s1=ws0.cell(row=2,column=1,value='RINGKASAN CEPAT')
+    s1.fill=SEC_FILL; s1.font=SEC_FONT; s1.alignment=C2; s1.border=BD2
+    ws0.row_dimensions[2].height=28
+
+    # 4 kotak metrik
+    metrics = [
+        ('TOTAL BOTOL/PRODUK\nHarus Disiapkan', total_produk, 'A'),
+        ('TOTAL KARDUS/RESI\nHarus Dikirim', total_kardus, 'B'),
+        ('KARDUS ISI CAMPUR\n(>1 jenis produk)', kardus_campur, 'C'),
+        ('KARDUS ISI TUNGGAL\n(1 jenis produk)', kardus_single+kardus_multi_qty, 'D'),
+    ]
+    for col,(label,val,_) in enumerate(metrics,1):
+        # Label
+        lc=ws0.cell(row=3,column=col,value=label)
+        lc.fill=PatternFill('solid',fgColor='F0F3FA')
+        lc.font=Font(size=9,name='Calibri',color='6B7280',bold=True)
+        lc.alignment=Alignment(horizontal='center',vertical='center',wrap_text=True)
+        lc.border=BD2
+        ws0.row_dimensions[3].height=32
+        # Nilai
+        vc=ws0.cell(row=4,column=col,value=val)
+        vc.fill=PatternFill('solid',fgColor='FFFFFF')
+        vc.font=Font(bold=True,size=22,name='Calibri',color='1B1F2E')
+        vc.alignment=C2; vc.border=BD2
+        ws0.row_dimensions[4].height=40
+
+    # ── BAGIAN 2: Detail Stok per Produk ──────────────────────────────────────
+    ws0.merge_cells('A5:D5')
+    s2=ws0.cell(row=5,column=1,value='DETAIL STOK — AMBIL DARI GUDANG')
+    s2.fill=SEC_FILL; s2.font=SEC_FONT; s2.alignment=C2; s2.border=BD2
+    ws0.row_dimensions[5].height=28
+
+    # Header tabel
+    for col,lbl in enumerate(['Nama Produk','Jumlah Botol Disiapkan','% dari Total','Keterangan'],1):
+        c=ws0.cell(row=6,column=col,value=lbl)
+        c.fill=HDR2; c.font=HFNT2; c.alignment=C2; c.border=BD2
+    ws0.row_dimensions[6].height=26
+
+    row_n=7
+    for i,(prod,qty) in enumerate(sorted(stok.items(),key=lambda x:-x[1])):
+        f=ROW_FILL1 if i%2==0 else ROW_FILL2
+        pct=f'{qty/total_produk*100:.1f}%' if total_produk>0 else '0%'
+        # Bar visual sederhana
+        bar_len=int(qty/total_produk*20) if total_produk>0 else 0
+        bar='█'*bar_len+'░'*(20-bar_len)
+
+        vals=[prod, qty, pct, bar]
+        aligns=[L2,C2,C2,L2]
+        for col,(v,al) in enumerate(zip(vals,aligns),1):
+            c=ws0.cell(row=row_n,column=col,value=v)
+            c.fill=f; c.alignment=al; c.border=BD2
+            c.font=Font(size=11,name='Calibri')
+        # Qty bold besar
+        ws0.cell(row=row_n,column=2).font=Font(bold=True,size=14,name='Calibri',color='1B1F2E')
+        ws0.row_dimensions[row_n].height=28
+        row_n+=1
+
+    # Total baris
+    for col,val in enumerate(['TOTAL',total_produk,'100%',''],1):
+        c=ws0.cell(row=row_n,column=col,value=val)
+        c.fill=AMBER; c.font=Font(bold=True,size=12,name='Calibri',color='FFFFFF')
+        c.alignment=C2; c.border=BD2
+    ws0.row_dimensions[row_n].height=30
+    row_n+=2
+
+    # ── BAGIAN 3: Rincian Kardus ───────────────────────────────────────────────
+    ws0.merge_cells(f'A{row_n}:D{row_n}')
+    s3=ws0.cell(row=row_n,column=1,value='RINCIAN KARDUS / PACKAGING')
+    s3.fill=SEC_FILL; s3.font=SEC_FONT; s3.alignment=C2; s3.border=BD2
+    ws0.row_dimensions[row_n].height=28
+    row_n+=1
+
+    for col,lbl in enumerate(['Jenis Kardus','Jumlah','Keterangan',''],1):
+        c=ws0.cell(row=row_n,column=col,value=lbl)
+        c.fill=HDR2; c.font=HFNT2; c.alignment=C2; c.border=BD2
+    ws0.row_dimensions[row_n].height=26
+    row_n+=1
+
+    kardus_data=[
+        ('Kardus isi 1 produk, qty 1', kardus_single, 'Packing standar, 1 produk langsung'),
+        ('Kardus isi 1 produk, qty >1', kardus_multi_qty, 'Packing >1 botol produk sama'),
+        ('Kardus isi CAMPUR (>1 jenis)', kardus_campur, '⚠️ Cek kombinasi di sheet Ringkasan Order'),
+        ('TOTAL KARDUS', total_kardus, 'Total resi yang harus dikirim hari ini'),
+    ]
+    for i,(label,qty,ket) in enumerate(kardus_data):
+        is_total = 'TOTAL' in label
+        f = AMBER if is_total else (ROW_FILL1 if i%2==0 else ROW_FILL2)
+        ft = Font(bold=True,size=12,name='Calibri',color='FFFFFF' if is_total else '1B1F2E')
+        for col,val in enumerate([label,qty,ket,''],1):
+            c=ws0.cell(row=row_n,column=col,value=val)
+            c.fill=f; c.font=ft; c.alignment=L2 if col!=2 else C2; c.border=BD2
+        ws0.cell(row=row_n,column=2).font=Font(bold=True,size=14,name='Calibri',
+                                                color='FFFFFF' if is_total else '1B1F2E')
+        ws0.row_dimensions[row_n].height=28
+        row_n+=1
+
+    # Catatan kaki
+    row_n+=1
+    ws0.merge_cells(f'A{row_n}:D{row_n}')
+    note=ws0.cell(row=row_n,column=1,
+                   value='📌 Catatan: Variasi ( - ) artinya data variasi tidak tersedia di PDF resi (kurir tidak mencantumkan). Cek sheet Semua Resi untuk detail SKU.')
+    note.font=Font(italic=True,size=9,name='Calibri',color='9CA3AF')
+    note.alignment=L2
+
+    ws0.freeze_panes='A7'
+
     # ── SHEET: Rekap Gudang ───────────────────────────────────────────────────
-    ws = wb.create_sheet("Rekap Gudang", 0)  # taruh di posisi pertama
+    ws = wb.create_sheet("Rekap Gudang")
     ws.column_dimensions['A'].width = 10
     ws.column_dimensions['B'].width = 12
     ws.column_dimensions['C'].width = 32
@@ -401,29 +555,28 @@ def write_excel_multi(rows, output_path):
                     if v[0].get('akun','-')==akun and v[0].get('waktu','-')==waktu}
         if not subset: continue
 
-        # Buat label kombinasi per resi
-        combo_groups=dd2(list)  # label → [resi]
+        # Buat label kombinasi per resi — pakai NAMA PRODUK NORMAL
+        # Semua varian SKU yang produknya sama digabung (misal BG-220GR-* = Black Garlic 220gr)
+        combo_groups=dd2(list)
         for resi,items in subset.items():
-            # Susun label: "SKU x qty" per item, diurutkan agar konsisten
             parts=[]
-            for it in sorted(items, key=lambda x:x['sku']):
+            # Gabungkan item yang nama produknya sama dengan menjumlahkan qty-nya
+            nama_qty=dd2(int)
+            for it in items:
                 nama=it['nama_produk'].rstrip(',').strip() if it.get('nama_produk') else it['sku']
-                # Nama pendek: ambil 3 kata pertama
-                short=' '.join(nama.split()[:4])
-                parts.append(f"{short}  x{it['qty']}")
+                nama_qty[nama]+=it['qty']
+            for nama in sorted(nama_qty.keys()):
+                parts.append(f"{nama}  x{nama_qty[nama]}")
             label=' | '.join(parts)
             combo_groups[label].append(resi)
 
-        # Urutkan dari jumlah resi terbanyak
         sorted_combos=sorted(combo_groups.items(), key=lambda x:-len(x[1]))
 
         for label,resi_list in sorted_combos:
             total_qty=sum(sum(r['qty'] for r in resi_map2[res]) for res in resi_list)
             contoh=resi_list[0]
-            # Tentukan warna: campur = merah muda, qty>1 = kuning, single = hijau
             is_multi_prod='|' in label
-            first_items=resi_map2[resi_list[0]]
-            first_qty=sum(r['qty'] for r in first_items)
+            first_qty=sum(r['qty'] for r in resi_map2[resi_list[0]])
             if is_multi_prod: f=F_MULTI
             elif first_qty>1: f=F_QTY
             else: f=F_SINGLE
@@ -434,20 +587,16 @@ def write_excel_multi(rows, output_path):
                 c=ws6.cell(row=row6,column=col,value=v)
                 c.fill=f; c.alignment=al; c.border=BD2
                 c.font=Font(size=10,name='Calibri')
-            # Jumlah resi dan qty bold
             ws6.cell(row=row6,column=4).font=Font(bold=True,size=12,name='Calibri')
             ws6.cell(row=row6,column=5).font=Font(bold=True,size=12,name='Calibri')
-            # Campur produk: warnai merah pada kolom jumlah
             if is_multi_prod:
                 ws6.cell(row=row6,column=4).font=Font(bold=True,size=12,color='CC0000',name='Calibri')
             row6+=1
 
-        # Subtotal
         sub_resi=len(subset)
         sub_qty=sum(sum(r['qty'] for r in v) for v in subset.values())
         ws6.merge_cells(f'A{row6}:C{row6}')
-        c=ws6.cell(row=row6,column=1,
-                    value=f'  SUBTOTAL  {akun} {waktu}  —  {sub_resi} resi')
+        c=ws6.cell(row=row6,column=1,value=f'  SUBTOTAL  {akun} {waktu}  —  {sub_resi} resi')
         c.fill=AMBER; c.font=Font(bold=True,size=10,name='Calibri')
         c.alignment=L2; c.border=BD2
         for col,val in [(4,sub_resi),(5,sub_qty)]:
@@ -455,6 +604,42 @@ def write_excel_multi(rows, output_path):
             ct.fill=AMBER; ct.font=Font(bold=True,size=12,name='Calibri')
             ct.alignment=C2; ct.border=BD2
         row6+=2
+
+    # ── SHEET: Kode Pengambilan Instan/Gojek ─────────────────────────────────
+    ws7=wb.create_sheet("Kode Pengambilan (Gojek)")
+    ws7.freeze_panes='A2'
+    ws7.sheet_tab_color='22C55E'
+    for w,width in zip('ABCDE',[22,14,14,22,30]):
+        ws7.column_dimensions[w].width=width
+
+    for col,lbl in enumerate(['No. Resi','Kurir','Layanan','Kode Pengambilan','Produk & Qty'],1):
+        c=ws7.cell(row=1,column=col,value=lbl)
+        c.fill=HDR2; c.font=HFNT2; c.alignment=C2; c.border=BD2
+    ws7.row_dimensions[1].height=28
+
+    # Filter resi yang punya kode pengambilan
+    resi_kode=dd2(list)
+    for r in rows:
+        if r.get('kode_pengambilan'):
+            resi_kode[r['no_resi']].append(r)
+
+    gf7=PatternFill('solid',fgColor='F0FDF4')
+    if resi_kode:
+        for rn,(resi,items) in enumerate(sorted(resi_kode.items()),2):
+            produk=' | '.join(f"{r['sku']} x{r['qty']}" for r in items)
+            kode=items[0].get('kode_pengambilan','')
+            kurir=items[0]['courier']
+            layan=items[0]['layanan']
+            for col,val in enumerate([resi,kurir,layan,kode,produk],1):
+                c=ws7.cell(row=rn,column=col,value=val)
+                c.fill=gf7; c.alignment=L2 if col in (1,4,5) else C2
+                c.border=BD2; c.font=Font(size=10,name='Calibri')
+            ws7.cell(row=rn,column=4).font=Font(bold=True,size=12,color='22A85A',name='Calibri')
+    else:
+        ws7.merge_cells('A2:E2')
+        c=ws7.cell(row=2,column=1,value='Tidak ada kode pengambilan di PDF ini (hanya ada untuk layanan Instan/Gojek)')
+        c.font=Font(italic=True,color='9CA3AF',size=10,name='Calibri')
+        c.alignment=L2
 
     wb.save(output_path)
     return output_path
