@@ -3,6 +3,7 @@ import tempfile
 import os
 import datetime
 from io import BytesIO
+from zoneinfo import ZoneInfo
 
 
 st.set_page_config(
@@ -14,7 +15,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
 
 html, body, [class*="css"] {
     font-family: 'Plus Jakarta Sans', sans-serif !important;
@@ -36,7 +37,6 @@ html, body, [class*="css"] {
     max-width: 100% !important;
 }
 
-/* MATIKAN SIDEBAR BAWAAN STREAMLIT */
 section[data-testid="stSidebar"] {
     display: none !important;
 }
@@ -144,22 +144,64 @@ div[data-testid="stButton"] > button[kind="primary"] {
     margin-top: 24px;
 }
 
-/* SIDEBAR BUTTON DI KOLOM KIRI */
-div[data-testid="column"]:first-child .stButton > button {
-    background: #111827 !important;
+.sidebar-menu-link {
+    display: block;
+    background: #111827;
     color: #E5E7EB !important;
-    border: 1px solid #1F2937 !important;
-    border-radius: 14px !important;
-    padding: 13px 14px !important;
-    text-align: left !important;
+    text-decoration: none !important;
+    border: 1px solid #1F2937;
+    border-radius: 14px;
+    padding: 13px 14px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: 800;
 }
 
-div[data-testid="column"]:first-child .stButton > button:hover {
-    background: #1F2937 !important;
+.sidebar-menu-link:hover {
+    background: #1F2937;
+    color: #FFFFFF !important;
+}
+
+.sidebar-menu-active {
+    background: #F5A623 !important;
     color: white !important;
+    border: 1px solid #F5A623 !important;
 }
 
-/* FILE UPLOADER BIAR LEBIH JELAS */
+.sidebar-menu-lock {
+    display: block;
+    background: #0B0B0D;
+    color: #4B5563 !important;
+    text-decoration: none !important;
+    border: 1px solid #111827;
+    border-radius: 14px;
+    padding: 13px 14px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: 800;
+    pointer-events: none;
+}
+
+.sidebar-logout {
+    display: block;
+    background: #111827;
+    color: #E5E7EB !important;
+    text-decoration: none !important;
+    border: 1px solid #1F2937;
+    border-radius: 14px;
+    padding: 13px 14px;
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.sidebar-logout:hover {
+    background: #7F1D1D;
+    color: white !important;
+    border-color: #7F1D1D;
+}
+
+/* FILE UPLOADER */
 [data-testid="stFileUploader"] {
     background: #111827 !important;
     border-radius: 16px !important;
@@ -326,7 +368,29 @@ for key, default in {
         st.session_state[key] = default
 
 
-now = datetime.datetime.now()
+now = datetime.datetime.now(ZoneInfo("Asia/Jakarta"))
+
+
+# =========================
+# URL PARAMS UNTUK MENU HTML
+# =========================
+
+params = st.query_params
+
+if "page" in params:
+    page_from_url = params.get("page")
+
+    if page_from_url in ["gudang", "konten", "live"]:
+        st.session_state.page = page_from_url
+
+if "logout" in params:
+    st.session_state.ok = False
+    st.session_state.role = None
+    st.session_state.label = None
+    st.session_state.access = []
+    st.session_state.page = "gudang"
+    st.query_params.clear()
+    st.rerun()
 
 
 # =========================
@@ -372,6 +436,7 @@ if not st.session_state.ok:
                 st.session_state.label = label
                 st.session_state.access = access
                 st.session_state.page = access[0] if access else "gudang"
+                st.query_params.clear()
                 st.rerun()
             else:
                 st.error("PIN salah.")
@@ -398,54 +463,54 @@ if not st.session_state.ok:
 
 
 # =========================
-# MAIN LAYOUT CUSTOM SIDEBAR
+# MAIN LAYOUT
 # =========================
 
 side, main = st.columns([1.05, 5.2], gap="large")
 
 
 with side:
+    current_page = st.session_state.page
+
+    def menu_class(page_name):
+        if current_page == page_name:
+            return "sidebar-menu-link sidebar-menu-active"
+        return "sidebar-menu-link"
+
+    gudang_menu = (
+        f'<a class="{menu_class("gudang")}" href="?page=gudang">📦 Gudang</a>'
+        if can(st.session_state.role, "gudang")
+        else '<div class="sidebar-menu-lock">🔒 Gudang</div>'
+    )
+
+    konten_menu = (
+        f'<a class="{menu_class("konten")}" href="?page=konten">🎬 Konten</a>'
+        if can(st.session_state.role, "konten")
+        else '<div class="sidebar-menu-lock">🔒 Konten</div>'
+    )
+
+    live_menu = (
+        f'<a class="{menu_class("live")}" href="?page=live">📡 Live</a>'
+        if can(st.session_state.role, "live")
+        else '<div class="sidebar-menu-lock">🔒 Live</div>'
+    )
+
     st.markdown(f"""
     <div class="sidebar-custom">
         <div class="logo-box">🧄</div>
         <div class="sidebar-title">HSD<br>AGENT</div>
         <div class="sidebar-sub">Sistem Operasional</div>
         <div class="role-pill">{st.session_state.label}</div>
+
         <div class="side-menu-title">MENU UTAMA</div>
-    """, unsafe_allow_html=True)
 
-    if can(st.session_state.role, "gudang"):
-        if st.button("📦  Gudang", use_container_width=True, key="menu_gudang"):
-            st.session_state.page = "gudang"
-            st.rerun()
-    else:
-        st.button("🔒  Gudang", use_container_width=True, disabled=True)
+        {gudang_menu}
+        {konten_menu}
+        {live_menu}
 
-    if can(st.session_state.role, "konten"):
-        if st.button("🎬  Konten", use_container_width=True, key="menu_konten"):
-            st.session_state.page = "konten"
-            st.rerun()
-    else:
-        st.button("🔒  Konten", use_container_width=True, disabled=True)
+        <div class="side-menu-title">AKUN</div>
+        <a class="sidebar-logout" href="?logout=1">🚪 Keluar</a>
 
-    if can(st.session_state.role, "live"):
-        if st.button("📡  Live", use_container_width=True, key="menu_live"):
-            st.session_state.page = "live"
-            st.rerun()
-    else:
-        st.button("🔒  Live", use_container_width=True, disabled=True)
-
-    st.markdown('<div class="side-menu-title">AKUN</div>', unsafe_allow_html=True)
-
-    if st.button("🚪  Keluar", use_container_width=True, key="logout"):
-        st.session_state.ok = False
-        st.session_state.role = None
-        st.session_state.label = None
-        st.session_state.access = []
-        st.session_state.page = "gudang"
-        st.rerun()
-
-    st.markdown("""
         <div class="side-note">
             HSD Agent v2<br>
             Gudang · Konten · Live<br><br>
@@ -467,7 +532,7 @@ with main:
             </div>
             <div style="text-align:right;color:#6B7280;font-size:12px;font-weight:700;">
                 {now.strftime('%A, %d %B %Y')}<br>
-                {now.strftime('%H:%M WIB')}
+                {now.strftime('%H:%M:%S WIB')}
             </div>
         </div>
     </div>
@@ -484,7 +549,7 @@ with main:
             st.error("Akses ditolak.")
             st.stop()
 
-        st.markdown(f"""
+        st.markdown("""
         <div class="card">
             <div style="font-size:18px;font-weight:900;color:#111827;">📦 Upload PDF Resi</div>
             <div style="font-size:13px;color:#6B7280;font-weight:600;margin-top:6px;">
