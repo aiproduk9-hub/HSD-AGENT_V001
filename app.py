@@ -17,6 +17,7 @@ st.set_page_config(
 )
 
 st.error("TES APP BARU KEBACA")
+st.sidebar.error("SIDEBAR TEST MUNCUL")
 # =========================
 # STYLE
 # =========================
