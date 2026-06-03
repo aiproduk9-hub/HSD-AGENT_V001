@@ -198,18 +198,41 @@ st.markdown(
         border: 0 !important;
     }
 
-    div[data-testid="stFileUploader"] {
-        background: #FFFFFF;
-        border: 1px dashed #CBD5E1;
-        border-radius: 18px;
-        padding: 12px;
-    }
+  div[data-testid="stFileUploader"] {
+    background: #FFFFFF;
+    border: 1px dashed #CBD5E1;
+    border-radius: 18px;
+    padding: 12px;
+}
 
-    div[data-testid="stFileUploader"] section {
-        background: #F8FAFC !important;
-        border-radius: 14px !important;
-    }
+div[data-testid="stFileUploader"] section {
+    background: #F8FAFC !important;
+    border-radius: 14px !important;
+}
 
+/* FIX TEKS UPLOADER BIAR KELIHATAN */
+div[data-testid="stFileUploader"] * {
+    color: #111827 !important;
+}
+
+div[data-testid="stFileUploader"] label,
+div[data-testid="stFileUploader"] small,
+div[data-testid="stFileUploader"] p,
+div[data-testid="stFileUploader"] span {
+    color: #111827 !important;
+    opacity: 1 !important;
+}
+
+div[data-testid="stFileUploader"] button {
+    background: #111827 !important;
+    color: #FFFFFF !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+}
+
+div[data-testid="stFileUploader"] button * {
+    color: #FFFFFF !important;
+}
     .small-muted {
         font-size: 13px;
         color: #6B7280;
