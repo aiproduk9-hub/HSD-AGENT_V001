@@ -589,9 +589,20 @@ def gudang_page():
     total_files = sum(len(payload["files"] or []) for payload in upload_map.values())
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.info(f"Total file terupload: {total_files} PDF")
+   st.info(f"Total file terupload: {total_files} PDF")
 
+reset_col, process_col = st.columns([1, 2])
+
+with reset_col:
+    reset_upload = st.button("Reset PDF / Ganti File Baru")
+
+with process_col:
     process = st.button("Proses PDF → Excel")
+
+if reset_upload:
+    st.session_state.upload_reset_counter += 1
+    st.success("Upload sudah dikosongkan. Silakan masukkan PDF baru.")
+    st.rerun()
 
     if process:
         if total_files == 0:
