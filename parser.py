@@ -60,7 +60,9 @@ def detect(text):
     if re.search(r'\bGTL\d{8,12}\b',text):
         pl='TikTok Shop' if 'TIKTOK' in t else 'Tokopedia/TikTok'
         return pl,'GTL','REG'
-    if re.search(r'No\.\s*Resi:\s*0046\d+|No\.\s*Resi:\s*00296',text) or re.search(r'\b0046\d{8,10}\b',text):
+    if re.search(r'No\.\s*Resi:\s*0046\d+|No\.\s*Resi:\s*00296',text) or \
+       re.search(r'\b0046\d{8,10}\b',text) or \
+       re.search(r'\b00296\d{7,9}\b',text):
         pl='TikTok Shop' if 'TIKTOK' in t else 'Tokopedia/TikTok'
         return pl,'SiCepat','REG'
     if re.search(r'No\.\s*Resi:\s*CM\d+',text) or re.search(r'\bBDO\d+\b',text):
@@ -72,6 +74,8 @@ def detect(text):
 def get_resi(text):
     for p in [r'\b(JX\d{10})\b',r'\b(GTL\d{8,12})\b',
               r'No\.\s*Resi:\s*(0046\d+)',r'No\.\s*Resi:\s*(00296\d+)',
+              r'\b(0046\d{8,10})\b',
+              r'\b(00296\d{7,9})\b',
               r'\b(SPXID\d{10,15})\b',r'No\.\s*Resi:\s*(CM\d+)',
               r'\b(AAJ\w{8,})\b',r'\b(LEX\w{8,})\b']:
         m=re.search(p,text)
