@@ -73,7 +73,7 @@ st.markdown(
         max-width: 1400px !important;
     }
 
-    /* SIDEBAR - JANGAN DIHAPUS */
+    /* SIDEBAR */
     section[data-testid="stSidebar"] {
         display: block !important;
         visibility: visible !important;
@@ -198,41 +198,43 @@ st.markdown(
         border: 0 !important;
     }
 
-  div[data-testid="stFileUploader"] {
-    background: #FFFFFF;
-    border: 1px dashed #CBD5E1;
-    border-radius: 18px;
-    padding: 12px;
-}
+    /* FILE UPLOADER */
+    div[data-testid="stFileUploader"] {
+        background: #FFFFFF;
+        border: 1px dashed #CBD5E1;
+        border-radius: 18px;
+        padding: 12px;
+    }
 
-div[data-testid="stFileUploader"] section {
-    background: #F8FAFC !important;
-    border-radius: 14px !important;
-}
+    div[data-testid="stFileUploader"] section {
+        background: #F8FAFC !important;
+        border-radius: 14px !important;
+    }
 
-/* FIX TEKS UPLOADER BIAR KELIHATAN */
-div[data-testid="stFileUploader"] * {
-    color: #111827 !important;
-}
+    div[data-testid="stFileUploader"] * {
+        color: #111827 !important;
+        opacity: 1 !important;
+    }
 
-div[data-testid="stFileUploader"] label,
-div[data-testid="stFileUploader"] small,
-div[data-testid="stFileUploader"] p,
-div[data-testid="stFileUploader"] span {
-    color: #111827 !important;
-    opacity: 1 !important;
-}
+    div[data-testid="stFileUploader"] label,
+    div[data-testid="stFileUploader"] small,
+    div[data-testid="stFileUploader"] p,
+    div[data-testid="stFileUploader"] span {
+        color: #111827 !important;
+        opacity: 1 !important;
+    }
 
-div[data-testid="stFileUploader"] button {
-    background: #111827 !important;
-    color: #FFFFFF !important;
-    border-radius: 12px !important;
-    font-weight: 700 !important;
-}
+    div[data-testid="stFileUploader"] button {
+        background: #111827 !important;
+        color: #FFFFFF !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+    }
 
-div[data-testid="stFileUploader"] button * {
-    color: #FFFFFF !important;
-}
+    div[data-testid="stFileUploader"] button * {
+        color: #FFFFFF !important;
+    }
+
     .small-muted {
         font-size: 13px;
         color: #6B7280;
@@ -254,9 +256,10 @@ if "role" not in st.session_state:
 
 if "selected_menu" not in st.session_state:
     st.session_state.selected_menu = "Gudang"
-    
+
 if "upload_reset_counter" not in st.session_state:
     st.session_state.upload_reset_counter = 0
+
 
 # =========================
 # HELPERS
@@ -306,6 +309,7 @@ def call_parser(saved_files: list[dict]):
 
     for name in candidate_names:
         fn = getattr(hsd_parser, name, None)
+
         if callable(fn):
             try:
                 return fn(saved_files)
@@ -435,8 +439,9 @@ def login_page():
             unsafe_allow_html=True,
         )
 
-        pin = st.text_input("Masukkan PIN", type="password", placeholder="PIN divisi")
-        login = st.button("Masuk")
+        with st.form("login_form"):
+            pin = st.text_input("Masukkan PIN", type="password", placeholder="PIN divisi")
+            login = st.form_submit_button("Masuk")
 
         if login:
             if pin in ROLES:
@@ -494,7 +499,7 @@ def render_sidebar():
 
 
 # =========================
-# PAGES
+# PAGE COMPONENTS
 # =========================
 def page_header(title: str, subtitle: str):
     top_left, top_right = st.columns([3, 1])
@@ -516,6 +521,9 @@ def page_header(title: str, subtitle: str):
         )
 
 
+# =========================
+# GUDANG PAGE
+# =========================
 def gudang_page():
     page_header(
         "Gudang",
@@ -560,7 +568,7 @@ def gudang_page():
                 label,
                 type=["pdf"],
                 accept_multiple_files=True,
-                key=f"upload_{brand}_{shift}",
+                key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
             )
 
             upload_map[label] = {
@@ -577,7 +585,7 @@ def gudang_page():
                 label,
                 type=["pdf"],
                 accept_multiple_files=True,
-                key=f"upload_{brand}_{shift}",
+                key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
             )
 
             upload_map[label] = {
@@ -589,20 +597,20 @@ def gudang_page():
     total_files = sum(len(payload["files"] or []) for payload in upload_map.values())
 
     st.markdown("<br>", unsafe_allow_html=True)
-   st.info(f"Total file terupload: {total_files} PDF")
+    st.info(f"Total file terupload: {total_files} PDF")
 
-reset_col, process_col = st.columns([1, 2])
+    reset_col, process_col = st.columns([1, 2])
 
-with reset_col:
-    reset_upload = st.button("Reset PDF / Ganti File Baru")
+    with reset_col:
+        reset_upload = st.button("Reset PDF / Ganti File Baru")
 
-with process_col:
-    process = st.button("Proses PDF → Excel")
+    with process_col:
+        process = st.button("Proses PDF → Excel")
 
-if reset_upload:
-    st.session_state.upload_reset_counter += 1
-    st.success("Upload sudah dikosongkan. Silakan masukkan PDF baru.")
-    st.rerun()
+    if reset_upload:
+        st.session_state.upload_reset_counter += 1
+        st.success("Upload sudah dikosongkan. Silakan masukkan PDF baru.")
+        st.rerun()
 
     if process:
         if total_files == 0:
@@ -644,6 +652,9 @@ if reset_upload:
             )
 
 
+# =========================
+# KONTEN PAGE
+# =========================
 def konten_page():
     page_header("Konten", "Area kerja divisi konten HSD.")
 
@@ -658,6 +669,9 @@ def konten_page():
     )
 
 
+# =========================
+# LIVE PAGE
+# =========================
 def live_page():
     page_header("Live", "Area kerja divisi live HSD.")
 
