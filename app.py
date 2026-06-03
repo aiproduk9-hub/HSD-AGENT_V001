@@ -1,787 +1,261 @@
-import streamlit as st
-import tempfile
-import os
-import datetime
-from io import BytesIO
-from zoneinfo import ZoneInfo
+import re, pdfplumber
 
+def clean(s): return ' '.join(str(s).split()) if s else ''
 
-st.set_page_config(
-    page_title="HSD AGENT",
-    page_icon="🧄",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-
-# =========================
-# STYLE
-# =========================
-
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'Plus Jakarta Sans', sans-serif !important;
+SKU_FIX = {
+    'BG-220GR-1-BOTOL-BG': 'BG-220GR-1-BOTOL-BG-SKU',
+    'BG-220GR-1-BOTOL-BH': 'BG-220GR-1-BOTOL-BH-SKU',
+    'BG-100GR-1-BOTOL-BG': 'BG-100GR-1-BOTOL-BG-SKU',
+    'BG-100GR-1-BOTOL-BH': 'BG-100GR-1-BOTOL-BH-SKU',
+    'BG-DRINK-PROMO-1-BTL': 'BG-DRINK-PROMO-1-BTL-ORI',
+    'BG-DRINK-PROMO-2-BTL': 'BG-DRINK-PROMO-2-BTL-ORI',
 }
+def normalize_product(sku, nama_produk):
+    """Normalisasi nama produk berdasarkan pola SKU"""
+    s = sku.upper()
+    if any(x in s for x in ['100GR','100 GR']): return 'Black Garlic 100gr'
+    if any(x in s for x in ['220GR','220 GR']): return 'Black Garlic 220gr'
+    if any(x in s for x in ['500GR','500 GR']): return 'Black Garlic 500gr'
+    if 'DRINK' in s and any(x in s for x in ['PEACH','PCH']): return 'Drink BG Peach'
+    if 'DRINK' in s: return 'Drink BG Original'
+    if any(x in s for x in ['FLORA','MF-','MULTIFLORA']): return 'Madu Multi Flora 260gr'
+    if any(x in s for x in ['KURMA','MK-','BUNGA']): return 'Madu Bunga Kurma 260gr'
+    n = nama_produk.upper() if nama_produk else ''
+    if 'PEACH' in n and 'DRINK' in n: return 'Drink BG Peach'
+    if 'DRINK' in n: return 'Drink BG Original'
+    if '100' in n and ('GR' in n or 'GRAM' in n): return 'Black Garlic 100gr'
+    if '220' in n and ('GR' in n or 'GRAM' in n): return 'Black Garlic 220gr'
+    if '500' in n and ('GR' in n or 'GRAM' in n): return 'Black Garlic 500gr'
+    if any(x in n for x in ['FLORA','MULTI FLORA']): return 'Madu Multi Flora 260gr'
+    if any(x in n for x in ['KURMA','BUNGA KURMA']): return 'Madu Bunga Kurma 260gr'
+    return nama_produk or sku
 
-#MainMenu, footer, header, .stDeployButton {
-    visibility: hidden;
-    display: none;
+SKU_FIX = {
+    'BG-220GR-1-BOTOL-BG': 'BG-220GR-1-BOTOL-BG-SKU',
+    'BG-220GR-1-BOTOL-BH': 'BG-220GR-1-BOTOL-BH-SKU',
+    'BG-100GR-1-BOTOL-BG': 'BG-100GR-1-BOTOL-BG-SKU',
+    'BG-100GR-1-BOTOL-BH': 'BG-100GR-1-BOTOL-BH-SKU',
+    'BG-DRINK-PROMO-1-BTL': 'BG-DRINK-PROMO-1-BTL-ORI',
+    'BG-DRINK-PROMO-2-BTL': 'BG-DRINK-PROMO-2-BTL-ORI',
 }
+def fix_sku(s):
+    s=s.strip('-').strip()
+    for k,v in SKU_FIX.items():
+        if s.startswith(k): return v
+    return s
+    s=s.strip('-').strip()
+    for k,v in SKU_FIX.items():
+        if s.startswith(k): return v
+    return s
 
-.stApp {
-    background: #F8F6F1;
-}
+def detect(text):
+    t=text.upper()
+    if re.search(r'SPXID\d+',text): return 'Shopee','Shopee Express','ECO'
+    if 'JET.CO.ID' in t or re.search(r'\bJX\d{10}\b',text):
+        pl='TikTok Shop' if 'TIKTOK' in t else 'Tokopedia/TikTok'
+        sv='EZ'
+        for s in ['EZ','NDD','ECO','REG']:
+            if re.search(r'\b'+s+r'\b',text[:300].upper()): sv=s; break
+        return pl,'J&T Express',sv
+    if re.search(r'\bGTL\d{8,12}\b',text):
+        pl='TikTok Shop' if 'TIKTOK' in t else 'Tokopedia/TikTok'
+        return pl,'GTL','REG'
+    if re.search(r'No\.\s*Resi:\s*0046\d+|No\.\s*Resi:\s*00296',text) or \
+       re.search(r'\b0046\d{8,10}\b',text) or \
+       re.search(r'\b00296\d{7,9}\b',text):
+        pl='TikTok Shop' if 'TIKTOK' in t else 'Tokopedia/TikTok'
+        return pl,'SiCepat','REG'
+    if re.search(r'No\.\s*Resi:\s*CM\d+',text) or re.search(r'\bBDO\d+\b',text):
+        return 'Shopee','Wahana','Reguler'
+    if re.search(r'\bAAJ\w+\b',text) or 'ANTERAJA' in t: return 'Shopee','Anteraja','REG'
+    if re.search(r'\bLEX\w+\b',text) or 'LAZADA' in t: return 'Lazada','LEX','REG'
+    return 'Unknown','Unknown','-'
 
-.block-container {
-    padding-top: 28px !important;
-    padding-left: 36px !important;
-    padding-right: 36px !important;
-    max-width: 100% !important;
-}
+def get_resi(text):
+    for p in [r'\b(JX\d{10})\b',r'\b(GTL\d{8,12})\b',
+              r'No\.\s*Resi:\s*(0046\d+)',r'No\.\s*Resi:\s*(00296\d+)',
+              r'\b(0046\d{8,10})\b',
+              r'\b(00296\d{7,9})\b',
+              r'\b(SPXID\d{10,15})\b',r'No\.\s*Resi:\s*(CM\d+)',
+              r'\b(AAJ\w{8,})\b',r'\b(LEX\w{8,})\b']:
+        m=re.search(p,text)
+        if m: return m.group(1)
+    return ''
 
-/* SIDEBAR ASLI STREAMLIT */
-section[data-testid="stSidebar"] {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    transform: translateX(0px) !important;
-    background: #050505 !important;
-    border-right: 1px solid #111827 !important;
-    width: 290px !important;
-    min-width: 290px !important;
-    max-width: 290px !important;
-}
+def get_pesanan(text):
+    for p in [r'No\.?\s*Pesanan[:\s]+([\w]+)',r'Order\s*I[Dd][:\s]+([\d]+)',
+              r'Pesan:\s*\(([\w]+)\)']:
+        m=re.search(p,text)
+        if m: return m.group(1)
+    return ''
 
-section[data-testid="stSidebar"] > div {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    background: #050505 !important;
-    padding: 24px 18px !important;
-}
+def get_penerima(text):
+    m=re.search(r'Penerima\s*:\s*([^\n(]+)',text)
+    if m:
+        n=clean(m.group(1).split('(')[0])
+        if 1<len(n)<60: return n
+    m2=re.search(r'Receiver\s+([^\n(]+)',text)
+    if m2:
+        n=clean(m2.group(1).split('(')[0])
+        if 1<len(n)<60: return n
+    return ''
 
-section[data-testid="stSidebar"] * {
-    font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
+def get_alamat_tiktok(text):
+    lines=text.split('\n'); capture=False; addr=[]
+    for line in lines:
+        l=clean(line)
+        # Support: "Penerima :" (TikTok/Shopee) DAN "Receiver" (GTL)
+        if re.search(r'Penerima\s*:|Receiver\s+',line): capture=True; continue
+        if capture:
+            if re.search(r'Weight\s*:|Ship\s*:|Order\s*Id|Estimated|Shipping Date|Sender\s|TT Order|In transit',line,re.I): break
+            if l and not re.search(r'^\(?\+?62|^Pengirim|^Sender|DKI JAKARTA',l) and len(l)>4:
+                addr.append(l)
+            if len(addr)>=5: break
+    return ' '.join(addr)
 
-.sidebar-logo {
-    width: 66px;
-    height: 66px;
-    background: #F5A623;
-    border-radius: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 34px;
-    margin-bottom: 16px;
-}
+def get_alamat_shopee(text):
+    lines=text.split('\n')
+    # Cara 1: cari baris KAB/KOTA
+    for i,line in enumerate(lines):
+        l=clean(line)
+        if re.search(r'KAB\.|KOTA JAKARTA|JAWA|SUMATERA|KALIMANTAN|SULAWESI|BALI|BANTEN|NTB|RIAU|PAPUA|ACEH|KOTA\s+\w+',l.upper()):
+            addr=[]
+            for j in range(max(0,i-3),min(i+3,len(lines))):
+                lj=clean(lines[j])
+                if lj and len(lj)>4 and not re.search(r'Penerima|Pengirim|HSD|6281|COD|Berat|Batas|No\.|Reguler|CASHLESS|SPXID|BDO|Resi:|SKU|Variasi',lj,re.I):
+                    addr.append(lj)
+            if addr: return ' '.join(addr[:4])
+    # Cara 2: ambil teks setelah penerima sampai sebelum tabel produk
+    m=re.search(r'Penerima\s*:\s*[^\n]+\n(.*?)(?:Berat:|No\.Pesanan:|#\s+Nama)',text,re.DOTALL)
+    if m:
+        raw=m.group(1)
+        lns=[clean(l) for l in raw.split('\n') if len(clean(l))>5]
+        lns=[l for l in lns if not re.search(r'^\d{10,}|^Pengirim|^HSD|CASHLESS|COD|Resi:|SKU',l,re.I)]
+        if lns: return ' '.join(lns[:3])
+    return ''
 
-.sidebar-title {
-    color: #FFFFFF;
-    font-size: 24px;
-    font-weight: 900;
-    line-height: 1.05;
-    margin-bottom: 8px;
-}
+def parse_tiktok_products(text):
+    """TikTok/J&T/GTL: Product Name | SKU | Seller SKU | Qty"""
+    items=[]
+    m=re.search(r'Product Name\s+SKU\s+Seller SKU\s+Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|$)',text)
+    if not m: return items
+    raw=[l.strip() for l in m.group(1).split('\n') if l.strip()]
+    main_re=re.compile(r'^(.*?)\s+(Default|220\s*GR|\b1\b|[A-Z0-9]{2,10})\s+([A-Z][A-Z0-9]*-[A-Z0-9\-]+)\s+(\d{1,2})\s*$')
+    sku_suf=re.compile(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\s*$')
+    i=0
+    while i<len(raw):
+        mm=main_re.match(raw[i])
+        if mm:
+            prod_part=mm.group(1).strip()
+            sys_sku=mm.group(2).strip()
+            seller_sku=mm.group(3).strip()
+            qty=int(mm.group(4))
+            j=i+1
+            while j<len(raw):
+                if main_re.match(raw[j]): break
+                sf=sku_suf.search(raw[j])
+                if sf: seller_sku+=sf.group(1); j+=1; continue
+                j+=1; break
+            seller_sku=re.sub(r'\s+','',seller_sku)
+            seller_sku=fix_sku(seller_sku)
+            nama=re.sub(r'^\d+\s*','',prod_part).strip()
+            nama=re.sub(r'\b(Default|220\s*GR)\s*$','',nama).strip().rstrip(',')
+            variasi='' if sys_sku.upper()=='DEFAULT' else sys_sku
+            # Fallback variasi dari field "Barang : 220 GR" di J&T
+            if not variasi:
+                bm=re.search(r'Barang\s*:\s*([^\n,]+)',text)
+                if bm: variasi=bm.group(1).strip()
+            items.append({'nama_produk':nama,'sku':seller_sku,'variasi':variasi,'qty':qty})
+            i=j
+        else: i+=1
+    return items
 
-.sidebar-subtitle {
-    color: #9CA3AF;
-    font-size: 12px;
-    font-weight: 700;
-    margin-bottom: 14px;
-}
-
-.sidebar-role {
-    display: inline-block;
-    background: #F5A623;
-    color: #FFFFFF;
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 11px;
-    font-weight: 900;
-    margin-bottom: 26px;
-}
-
-.sidebar-menu-title {
-    color: #6B7280;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 1px;
-    margin: 18px 0 10px;
-}
-
-.sidebar-note {
-    color: #6B7280;
-    font-size: 11px;
-    line-height: 1.6;
-    margin-top: 24px;
-}
-
-/* BUTTON UMUM */
-.stButton > button {
-    border-radius: 12px !important;
-    border: none !important;
-    font-weight: 800 !important;
-    transition: all .15s ease;
-    font-family: 'Plus Jakarta Sans', sans-serif !important;
-}
-
-.stButton > button:hover {
-    transform: translateY(-1px);
-}
-
-div[data-testid="stButton"] > button[kind="primary"] {
-    background: #F5A623 !important;
-    color: white !important;
-    padding: 14px !important;
-    font-size: 14px !important;
-}
-
-/* BUTTON DI SIDEBAR */
-section[data-testid="stSidebar"] .stButton > button {
-    background: #111827 !important;
-    color: #E5E7EB !important;
-    border: 1px solid #1F2937 !important;
-    border-radius: 14px !important;
-    padding: 13px 14px !important;
-    text-align: left !important;
-    justify-content: flex-start !important;
-    margin-bottom: 6px !important;
-}
-
-section[data-testid="stSidebar"] .stButton > button:hover {
-    background: #1F2937 !important;
-    color: #FFFFFF !important;
-    transform: none !important;
-}
-
-section[data-testid="stSidebar"] div[data-testid="stButton"] > button[kind="primary"] {
-    background: #F5A623 !important;
-    color: #FFFFFF !important;
-    border: 1px solid #F5A623 !important;
-}
-
-section[data-testid="stSidebar"] .stButton > button:disabled {
-    background: #0B0B0D !important;
-    color: #4B5563 !important;
-    border: 1px solid #111827 !important;
-}
-
-/* CARD */
-.card {
-    background: #FFFFFF;
-    border: 1px solid #E5E7EB;
-    border-radius: 18px;
-    padding: 22px;
-    margin-bottom: 18px;
-    box-shadow: 0 8px 26px rgba(15, 23, 42, 0.04);
-}
-
-.top-card {
-    background: #FFFFFF;
-    border: 1px solid #E5E7EB;
-    border-radius: 18px;
-    padding: 18px 22px;
-    margin-bottom: 18px;
-    box-shadow: 0 8px 26px rgba(15, 23, 42, 0.04);
-}
-
-/* FILE UPLOADER */
-[data-testid="stFileUploader"] {
-    background: #111827 !important;
-    border-radius: 16px !important;
-    border: 1px solid #1F2937 !important;
-    padding: 14px !important;
-}
-
-[data-testid="stFileUploader"] * {
-    color: #E5E7EB !important;
-}
-
-[data-testid="stFileUploader"] button {
-    background: #020617 !important;
-    color: #FFFFFF !important;
-    border: 1px solid #374151 !important;
-    border-radius: 10px !important;
-}
-
-[data-testid="stFileUploaderDropzone"] {
-    background: #111827 !important;
-    border-radius: 14px !important;
-}
-
-.slot-hsd {
-    background: #EFF6FF;
-    border: 1.5px dashed #60A5FA;
-    border-radius: 14px;
-    padding: 12px;
-    text-align: center;
-    color: #2563EB;
-    font-size: 12px;
-    font-weight: 800;
-    margin-top: 8px;
-}
-
-.slot-hss {
-    background: #FFF7ED;
-    border: 1.5px dashed #FB923C;
-    border-radius: 14px;
-    padding: 12px;
-    text-align: center;
-    color: #F97316;
-    font-size: 12px;
-    font-weight: 800;
-    margin-top: 8px;
-}
-
-.slot-done {
-    background: #F0FDF4;
-    border: 1.5px solid #22C55E;
-    border-radius: 14px;
-    padding: 12px;
-    text-align: center;
-    color: #16A34A;
-    font-size: 12px;
-    font-weight: 900;
-    margin-top: 8px;
-}
-
-.section-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 14px 0 12px;
-}
-
-.badge-hsd {
-    background: #3B82F6;
-    color: white;
-    padding: 4px 10px;
-    border-radius: 8px;
-    font-size: 11px;
-    font-weight: 900;
-}
-
-.badge-hss {
-    background: #F97316;
-    color: white;
-    padding: 4px 10px;
-    border-radius: 8px;
-    font-size: 11px;
-    font-weight: 900;
-}
-
-.metric-box {
-    background: white;
-    border: 1px solid #E5E7EB;
-    border-radius: 16px;
-    padding: 18px;
-    text-align: center;
-    box-shadow: 0 8px 26px rgba(15, 23, 42, 0.04);
-}
-
-.metric-val {
-    font-size: 28px;
-    font-weight: 900;
-    color: #111827;
-}
-
-.metric-lbl {
-    font-size: 11px;
-    font-weight: 800;
-    color: #9CA3AF;
-    text-transform: uppercase;
-}
-
-.stProgress > div > div {
-    background: #F5A623 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# =========================
-# ROLE
-# =========================
-
-ROLES = {
-    "gudang": {
-        "pin": "1234",
-        "role": "gudang",
-        "label": "Divisi Gudang",
-        "access": ["gudang"]
-    },
-    "konten": {
-        "pin": "2345",
-        "role": "konten",
-        "label": "Divisi Konten",
-        "access": ["konten"]
-    },
-    "live": {
-        "pin": "3456",
-        "role": "live",
-        "label": "Divisi Live",
-        "access": ["live"]
-    },
-    "manager": {
-        "pin": "0000",
-        "role": "admin",
-        "label": "Manager / BOD",
-        "access": ["gudang", "konten", "live"]
-    },
-}
-
-
-def check_pin(pin):
-    for item in ROLES.values():
-        if item["pin"] == pin:
-            return item["role"], item["label"], item["access"]
-    return None, None, None
-
-
-def can(role, page):
-    if role == "admin":
-        return True
-    return role == page
-
-
-for key, default in {
-    "ok": False,
-    "role": None,
-    "label": None,
-    "access": [],
-    "page": "gudang"
-}.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
-
-
-now = datetime.datetime.now(ZoneInfo("Asia/Jakarta"))
-
-
-# =========================
-# LOGIN
-# =========================
-
-if not st.session_state.ok:
-    _, col, _ = st.columns([1, 1.1, 1])
-
-    with col:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div style="text-align:center;margin-bottom:24px;">
-            <div style="width:82px;height:82px;background:#F5A623;border-radius:24px;
-                margin:0 auto;font-size:44px;line-height:82px;">🧄</div>
-            <h1 style="margin:18px 0 4px;color:#111827;font-weight:900;letter-spacing:-1px;">HSD AGENT</h1>
-            <p style="color:#9CA3AF;font-size:13px;font-weight:600;">Sistem Manajemen Operasional</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.form("login"):
-            pin = st.text_input(
-                "PIN",
-                "",
-                type="password",
-                placeholder="Masukkan PIN",
-                label_visibility="collapsed"
-            )
-
-            login = st.form_submit_button(
-                "🔐 Masuk",
-                use_container_width=True,
-                type="primary"
-            )
-
-        if login:
-            role, label, access = check_pin(pin)
-
-            if role:
-                st.session_state.ok = True
-                st.session_state.role = role
-                st.session_state.label = label
-                st.session_state.access = access
-                st.session_state.page = access[0] if access else "gudang"
-                st.rerun()
+def parse_shopee_products(text):
+    """Shopee/Wahana/SiCepat: # | Nama Produk | SKU | Variasi | Qty"""
+    items=[]
+    m=re.search(r'#\s+Nama Produk\s+SKU\s+Variasi\s+Qty([\s\S]+?)(?:Pesan:|$)',text)
+    if not m: return items
+    lines=[l.strip() for l in m.group(1).split('\n') if l.strip()]
+    main_re=re.compile(r'^(\d+)\s+.+?(BG-[A-Z0-9\-]+)\s+(220 GR|ORIGINAL \d+\s*BOTOL|DEFAULT|[\w\s]{2,25}?)\s+(\d{1,2})\s*$')
+    i=0
+    while i<len(lines):
+        mm=main_re.match(lines[i])
+        if mm:
+            sku_p=mm.group(2).rstrip('-')
+            variasi=mm.group(3).strip()
+            qty=int(mm.group(4))
+            # Nama produk: teks antara nomor dan BG-
+            rest=lines[i]
+            nm=re.match(r'^\d+\s+',rest)
+            if nm:
+                after=rest[nm.end():]
+                bg=after.find(sku_p[:6])
+                nama=after[:bg].strip().rstrip(',') if bg>0 else ''
+            else: nama=''
+            # Scan lanjutan untuk complete SKU
+            j=i+1; last_cap=''
+            while j<len(lines) and not main_re.match(lines[j]):
+                ce=re.search(r'\b([A-Z][A-Z0-9]*)\s*$',lines[j])
+                if ce: last_cap=ce.group(1)
+                if not nama:
+                    rn=re.sub(r'[A-Z0-9\-]+\s*$','',lines[j]).strip()
+                    if rn and len(rn)>3: nama=rn.rstrip(',')
+                j+=1
+            if last_cap and last_cap not in sku_p and last_cap not in ('GR','BOTOL','SKU'):
+                full_sku=sku_p+('-' if not sku_p.endswith('-') else '')+last_cap
+            elif last_cap=='SKU':
+                full_sku=sku_p+'-SKU'
             else:
-                st.error("PIN salah.")
+                full_sku=sku_p
+            full_sku=fix_sku(full_sku)
+            variasi_c='' if variasi.upper()=='DEFAULT' else variasi
+            items.append({'nama_produk':nama,'sku':full_sku,'variasi':variasi_c,'qty':qty})
+            i=j
+        else: i+=1
+    return items
 
-        st.markdown("""
-        <div class="card">
-            <div style="font-size:11px;color:#9CA3AF;font-weight:900;margin-bottom:10px;">PIN DIVISI</div>
-            <div style="display:flex;justify-content:space-between;border-bottom:1px solid #E5E7EB;padding:6px 0;">
-                <span>Divisi Gudang</span><b>1234</b>
-            </div>
-            <div style="display:flex;justify-content:space-between;border-bottom:1px solid #E5E7EB;padding:6px 0;">
-                <span>Divisi Konten</span><b>2345</b>
-            </div>
-            <div style="display:flex;justify-content:space-between;border-bottom:1px solid #E5E7EB;padding:6px 0;">
-                <span>Divisi Live</span><b>3456</b>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:6px 0;">
-                <span>Manager / BOD</span><b>0000</b>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+def parse_page(text):
+    platform,courier,layanan=detect(text)
+    resi=get_resi(text)
+    if not resi: return []
+    penerima=get_penerima(text)
+    pesanan=get_pesanan(text)
 
-    st.stop()
+    # SiCepat bisa pakai format Shopee (# Nama Produk) ATAU TikTok (Product Name)
+    has_shopee_table='# Nama Produk' in text and 'Variasi' in text
+    has_tiktok_table='Product Name' in text and 'Seller SKU' in text
 
-
-# =========================
-# SIDEBAR
-# =========================
-
-with st.sidebar:
-    st.markdown("""
-    <div class="sidebar-logo">🧄</div>
-    <div class="sidebar-title">HSD<br>AGENT</div>
-    <div class="sidebar-subtitle">Sistem Operasional</div>
-    """, unsafe_allow_html=True)
-
-    st.markdown(
-        f'<div class="sidebar-role">{st.session_state.label}</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown('<div class="sidebar-menu-title">MENU UTAMA</div>', unsafe_allow_html=True)
-
-    if can(st.session_state.role, "gudang"):
-        if st.button(
-            "📦  Gudang",
-            use_container_width=True,
-            type="primary" if st.session_state.page == "gudang" else "secondary",
-            key="menu_gudang"
-        ):
-            st.session_state.page = "gudang"
-            st.rerun()
+    if has_shopee_table:
+        alamat=get_alamat_shopee(text)
+        products=parse_shopee_products(text)
+    elif has_tiktok_table:
+        alamat=get_alamat_tiktok(text)
+        products=parse_tiktok_products(text)
     else:
-        st.button("🔒  Gudang", use_container_width=True, disabled=True, key="lock_gudang")
+        alamat=get_alamat_shopee(text) if courier in ['Wahana','Shopee Express'] else get_alamat_tiktok(text)
+        products=[]
 
-    if can(st.session_state.role, "konten"):
-        if st.button(
-            "🎬  Konten",
-            use_container_width=True,
-            type="primary" if st.session_state.page == "konten" else "secondary",
-            key="menu_konten"
-        ):
-            st.session_state.page = "konten"
-            st.rerun()
-    else:
-        st.button("🔒  Konten", use_container_width=True, disabled=True, key="lock_konten")
+    if not products:
+        products=[{'nama_produk':'(cek manual)','sku':'(cek manual)','variasi':'','qty':1}]
 
-    if can(st.session_state.role, "live"):
-        if st.button(
-            "📡  Live",
-            use_container_width=True,
-            type="primary" if st.session_state.page == "live" else "secondary",
-            key="menu_live"
-        ):
-            st.session_state.page = "live"
-            st.rerun()
-    else:
-        st.button("🔒  Live", use_container_width=True, disabled=True, key="lock_live")
+    return [{'platform':platform,'courier':courier,'layanan':layanan,
+             'no_resi':resi,
+             'nama_produk': normalize_product(p['sku'], p['nama_produk']),
+             'nama_produk_asli': p['nama_produk'],
+             'sku':p['sku'],'variasi':p['variasi'],
+             'qty':p['qty'],'no_pesanan':pesanan,
+             'nama_penerima':penerima,'alamat':alamat} for p in products]
 
-    st.markdown('<div class="sidebar-menu-title">AKUN</div>', unsafe_allow_html=True)
-
-    if st.button("🚪  Keluar", use_container_width=True, key="logout_btn"):
-        st.session_state.ok = False
-        st.session_state.role = None
-        st.session_state.label = None
-        st.session_state.access = []
-        st.session_state.page = "gudang"
-        st.rerun()
-
-    st.markdown("""
-    <div class="sidebar-note">
-        HSD Agent v2<br>
-        Gudang · Konten · Live<br><br>
-        Sidebar resmi aktif.
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# =========================
-# TOP BAR
-# =========================
-
-st.markdown(f"""
-<div class="top-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div>
-            <div style="font-size:22px;font-weight:900;color:#111827;">🧄 HSD AGENT</div>
-            <div style="color:#9CA3AF;font-size:12px;font-weight:700;margin-top:4px;">
-                {st.session_state.label}
-            </div>
-        </div>
-        <div style="text-align:right;color:#6B7280;font-size:12px;font-weight:700;">
-            {now.strftime('%A, %d %B %Y')}<br>
-            {now.strftime('%H:%M:%S WIB')}
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-
-page = st.session_state.page
-
-
-# =========================
-# PAGE GUDANG
-# =========================
-
-if page == "gudang":
-    if not can(st.session_state.role, "gudang"):
-        st.error("Akses ditolak.")
-        st.stop()
-
-    st.markdown("""
-    <div class="card">
-        <div style="font-size:18px;font-weight:900;color:#111827;">📦 Upload PDF Resi</div>
-        <div style="font-size:13px;color:#6B7280;font-weight:600;margin-top:6px;">
-            Mode PDF besar aktif. Cocok untuk ribuan resi dalam 1 PDF.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    uploads = {}
-
-    st.markdown("""
-    <div class="section-title">
-        <span class="badge-hsd">HSD</span>
-        <span style="color:#2563EB;font-size:18px;font-weight:900;">Botol Hitam</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    c1, c2, c3 = st.columns(3)
-
-    for col, waktu, key in [
-        (c1, "PAGI", "hsd_p"),
-        (c2, "SIANG", "hsd_s"),
-        (c3, "SORE", "hsd_r"),
-    ]:
-        with col:
-            st.markdown(
-                f'<div style="font-size:11px;font-weight:900;color:#374151;margin-bottom:6px;">{waktu}</div>',
-                unsafe_allow_html=True
-            )
-
-            f = st.file_uploader(
-                f"HSD {waktu}",
-                type="pdf",
-                key=key,
-                label_visibility="collapsed"
-            )
-
-            uploads[("HSD", waktu)] = f
-
-            if f:
-                st.markdown(
-                    f'<div class="slot-done">✅ {f.name[:26]}</div>',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.markdown(
-                    '<div class="slot-hsd">📄 Pilih PDF</div>',
-                    unsafe_allow_html=True
-                )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="section-title">
-        <span class="badge-hss">HSS</span>
-        <span style="color:#F97316;font-size:18px;font-weight:900;">Botol Merah</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    c4, c5, c6 = st.columns(3)
-
-    for col, waktu, key in [
-        (c4, "PAGI", "hss_p"),
-        (c5, "SIANG", "hss_s"),
-        (c6, "SORE", "hss_r"),
-    ]:
-        with col:
-            st.markdown(
-                f'<div style="font-size:11px;font-weight:900;color:#374151;margin-bottom:6px;">{waktu}</div>',
-                unsafe_allow_html=True
-            )
-
-            f = st.file_uploader(
-                f"HSS {waktu}",
-                type="pdf",
-                key=key,
-                label_visibility="collapsed"
-            )
-
-            uploads[("HSS", waktu)] = f
-
-            if f:
-                st.markdown(
-                    f'<div class="slot-done">✅ {f.name[:26]}</div>',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.markdown(
-                    '<div class="slot-hss">📄 Pilih PDF</div>',
-                    unsafe_allow_html=True
-                )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    active = [
-        (akun, waktu, file)
-        for (akun, waktu), file in uploads.items()
-        if file
-    ]
-
-    b1, b2 = st.columns([2, 3])
-
-    with b1:
-        proses = st.button(
-            "⚡ PROSES PDF → EXCEL",
-            type="primary",
-            use_container_width=True,
-            disabled=not active
-        )
-
-    with b2:
-        if active:
-            st.success(f"{len(active)} PDF siap diproses")
-        else:
-            st.info("Upload minimal 1 PDF")
-
-    if proses and active:
-        from parser import process_pdf
-        from excel_writer import write_excel_multi
-
-        all_rows = []
-        progress = st.progress(0, "Memulai...")
-        log_box = st.empty()
-        logs = []
-
-        for fi, (akun, waktu, file) in enumerate(active):
-            file_size_mb = getattr(file, "size", 0) / (1024 * 1024)
-
-            logs.append(f"📄 **{akun} {waktu}** — `{file.name}` ({file_size_mb:.1f} MB)")
-            log_box.markdown("\n\n".join(logs))
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(file.getbuffer())
-                temp_pdf_path = tmp.name
-
-            def prog(cur, tot, fi=fi, total_files=len(active), akun=akun, waktu=waktu):
-                if tot and tot > 0:
-                    percent = int((fi / total_files + cur / tot / total_files) * 100)
-                else:
-                    percent = int((fi / total_files) * 100)
-
-                progress.progress(
-                    min(percent, 100),
-                    text=f"{akun} {waktu}: halaman {cur}/{tot}"
-                )
-
+def process_pdf(pdf_path, progress_callback=None):
+    all_rows,errors,seen=[],[],{}
+    with pdfplumber.open(pdf_path) as pdf:
+        total=len(pdf.pages)
+        for i,page in enumerate(pdf.pages):
             try:
-                rows, _ = process_pdf(temp_pdf_path, progress_callback=prog)
-
-                for r in rows:
-                    r["akun"] = akun
-                    r["waktu"] = waktu
-
-                all_rows.extend(rows)
-
-                logs.append(f"✅ {akun} {waktu}: **{len(rows)} baris**")
-                log_box.markdown("\n\n".join(logs))
-
-            except Exception as e:
-                logs.append(f"❌ {akun} {waktu}: {e}")
-                log_box.markdown("\n\n".join(logs))
-
-            finally:
-                if os.path.exists(temp_pdf_path):
-                    os.unlink(temp_pdf_path)
-
-        if all_rows:
-            progress.progress(95, "Membuat Excel...")
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-                temp_xlsx_path = tmp.name
-
-            write_excel_multi(all_rows, temp_xlsx_path)
-
-            out = BytesIO()
-
-            with open(temp_xlsx_path, "rb") as f:
-                out.write(f.read())
-
-            if os.path.exists(temp_xlsx_path):
-                os.unlink(temp_xlsx_path)
-
-            out.seek(0)
-            progress.progress(100, "Selesai!")
-
-            total_resi = len(set(r.get("no_resi") for r in all_rows))
-            total_qty = sum(int(r.get("qty", 0) or 0) for r in all_rows)
-
-            m1, m2, m3, m4 = st.columns(4)
-
-            for col, val, label in [
-                (m1, total_resi, "Total Resi"),
-                (m2, total_qty, "Total Qty"),
-                (m3, len(active), "PDF Diproses"),
-                (m4, now.strftime("%H:%M"), "Waktu"),
-            ]:
-                with col:
-                    st.markdown(f"""
-                    <div class="metric-box">
-                        <div class="metric-val">{val}</div>
-                        <div class="metric-lbl">{label}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            st.download_button(
-                "📥 Download Excel Rekap",
-                data=out,
-                file_name=f"HSD_REKAP_{now.strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                type="primary"
-            )
-
-        else:
-            st.error("Tidak ada data yang berhasil dibaca dari PDF.")
-
-
-# =========================
-# PAGE KONTEN
-# =========================
-
-elif page == "konten":
-    st.markdown("""
-    <div class="card">
-        <div style="font-size:22px;font-weight:900;color:#111827;">🎬 Divisi Konten</div>
-        <p style="color:#6B7280;font-size:14px;font-weight:600;">
-            Fitur ini segera hadir. Nanti bisa dibuat untuk jadwal konten, ide konten, script, dan arsip video.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# =========================
-# PAGE LIVE
-# =========================
-
-elif page == "live":
-    st.markdown("""
-    <div class="card">
-        <div style="font-size:22px;font-weight:900;color:#111827;">📡 Divisi Live</div>
-        <p style="color:#6B7280;font-size:14px;font-weight:600;">
-            Fitur ini segera hadir. Nanti bisa dibuat untuk jadwal live, laporan live, host, dan performa penjualan.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+                text=page.extract_text() or ''
+                for r in parse_page(text):
+                    k=r['no_resi']+'_'+(r['sku'] or str(r['qty']))
+                    if k not in seen: seen[k]=True; all_rows.append(r)
+            except Exception as e: errors.append(f"Hal {i+1}: {e}")
+            if progress_callback: progress_callback(i+1,total)
+    return all_rows,errors
