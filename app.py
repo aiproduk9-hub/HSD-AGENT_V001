@@ -1,218 +1,662 @@
 import streamlit as st
-import tempfile, os, datetime
-from io import BytesIO
+import datetime
+import tempfile
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
-st.set_page_config(page_title='HSD AGENT',page_icon='🧄',layout='wide')
+# =========================
+# PAGE CONFIG
+# =========================
+st.set_page_config(
+    page_title="HSD AGENT",
+    page_icon="🧄",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-html,[class*="css"]{font-family:'Plus Jakarta Sans',sans-serif!important;}
-#MainMenu,footer,header,.stDeployButton{visibility:hidden;display:none;}
-.stApp{background:#F8F6F1;}
-.stButton>button{font-family:'Plus Jakarta Sans',sans-serif!important;font-weight:700!important;border-radius:8px!important;border:none!important;transition:all .15s;}
-.stButton>button:hover{transform:translateY(-1px);}
-div[data-testid="stButton"]>button[kind="primary"]{background:#F5A623!important;color:white!important;font-size:15px!important;padding:14px!important;}
-.card{background:white;border-radius:12px;padding:20px;border:1px solid #E5E7EB;margin-bottom:12px;}
-.slot-hsd{background:#EFF6FF;border:1.5px dashed #93C5FD;border-radius:10px;padding:12px;text-align:center;color:#3B82F6;font-size:12px;font-weight:600;}
-.slot-hss{background:#FFF7ED;border:1.5px dashed #FDBA74;border-radius:10px;padding:12px;text-align:center;color:#F97316;font-size:12px;font-weight:600;}
-.slot-done{background:#F0FDF4;border:1.5px solid #86EFAC;border-radius:10px;padding:12px;text-align:center;color:#16A34A;font-size:12px;font-weight:600;}
-.nav-btn{display:inline-block;padding:8px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;margin:2px;}
-.metric-box{background:white;border-radius:10px;padding:16px;border:1px solid #E5E7EB;text-align:center;}
-.metric-val{font-size:26px;font-weight:800;color:#1C1C1E;}
-.metric-lbl{font-size:10px;color:#9CA3AF;font-weight:600;text-transform:uppercase;}
-[data-testid="stFileUploader"]{background:white!important;border-radius:8px!important;}
-.stProgress>div>div{background:#F5A623!important;border-radius:99px!important;}
-section[data-testid="stSidebar"]{display:none!important;}
-</style>
-""",unsafe_allow_html=True)
+# =========================
+# SAFE IMPORTS
+# =========================
+try:
+    import parser as hsd_parser
+except Exception:
+    hsd_parser = None
 
-ROLES={
-    'gudang': {'pin':'1234','role':'gudang','label':'Divisi Gudang','access':['gudang']},
-    'konten': {'pin':'2345','role':'konten','label':'Divisi Konten','access':['konten']},
-    'live':   {'pin':'3456','role':'live',  'label':'Divisi Live',  'access':['live']},
-    'manager':{'pin':'0000','role':'admin', 'label':'Manager / BOD','access':['gudang','konten','live']},
+try:
+    import excel_writer as hsd_excel
+except Exception:
+    hsd_excel = None
+
+
+# =========================
+# CONSTANTS
+# =========================
+ROLES = {
+    "1234": "Gudang",
+    "2345": "Konten",
+    "3456": "Live",
+    "0000": "Manager/BOD",
 }
-MENUS=[('home','🏠','Home'),('gudang','📦','Gudang'),
-       ('konten','🎬','Konten'),('live','📡','Live')]
 
-def check_pin(p):
-    for v in ROLES.values():
-        if v['pin']==p: return v['role'],v['label'],v['access']
-    return None,None,None
+DIVISIONS = ["Gudang", "Konten", "Live"]
 
-def can(role,req):
-    if req=='home': return True
-    if role=='admin': return True
-    return req==role
+UPLOAD_GROUPS = [
+    ("HSD Pagi", "HSD", "Pagi"),
+    ("HSD Siang", "HSD", "Siang"),
+    ("HSD Sore", "HSD", "Sore"),
+    ("HSS Pagi", "HSS", "Pagi"),
+    ("HSS Siang", "HSS", "Siang"),
+    ("HSS Sore", "HSS", "Sore"),
+]
 
-for k,d in [('ok',False),('role',None),('label',None),('access',[]),('page','home')]:
-    if k not in st.session_state: st.session_state[k]=d
 
-# ── LOGIN ──────────────────────────────────────────────────────────────────────
-if not st.session_state.ok:
-    _,col,_=st.columns([1,1.2,1])
-    with col:
-        st.markdown('<br><br>',unsafe_allow_html=True)
-        st.markdown("""
-        <div style="text-align:center;margin-bottom:20px;">
-            <div style="width:80px;height:80px;background:#F5A623;border-radius:20px;
-                margin:0 auto;font-size:44px;line-height:80px;">🧄</div>
-            <h2 style="margin:12px 0 2px;color:#1C1C1E;font-weight:800;">HSD AGENT</h2>
-            <p style="color:#9CA3AF;font-size:13px;">Sistem Manajemen Operasional</p>
-        </div>""",unsafe_allow_html=True)
-        with st.form('login'):
-            pin=st.text_input('PIN','',type='password',placeholder='Masukkan PIN lalu Enter',label_visibility='collapsed')
-            ok=st.form_submit_button('🔐  Masuk',use_container_width=True,type='primary')
-        if ok and pin:
-            role,label,access=check_pin(pin)
-            if role:
-                st.session_state.ok=True; st.session_state.role=role
-                st.session_state.label=label; st.session_state.access=access
-                st.rerun()
-            else:
-                st.error('PIN salah.')
-        # PIN info
-        st.markdown('<div style="background:#1C1C1E;border-radius:10px;padding:14px;margin-top:8px;">',unsafe_allow_html=True)
-        st.markdown('<div style="font-size:10px;color:#6B7280;font-weight:700;margin-bottom:8px;">PIN DIVISI</div>',unsafe_allow_html=True)
-        for v in ROLES.values():
-            st.markdown(f'<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #2C2C2E;"><span style="color:#9CA3AF;font-size:12px;">{v["label"]}</span><span style="background:#F5A623;color:white;padding:1px 8px;border-radius:4px;font-size:11px;font-weight:700;">{v["pin"]}</span></div>',unsafe_allow_html=True)
-        st.markdown('</div>',unsafe_allow_html=True)
-    st.stop()
+# =========================
+# CSS
+# =========================
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: #F7F1E8;
+        color: #111827;
+    }
 
-# ── TOPBAR ─────────────────────────────────────────────────────────────────────
-now=datetime.datetime.now()
-tcol1,tcol2=st.columns([3,1])
-with tcol1:
-    st.markdown(f"""
-    <div style="background:white;border-radius:12px;padding:12px 20px;
-        border:1px solid #E5E7EB;margin-bottom:12px;">
-        <span style="font-size:18px;font-weight:800;color:#1C1C1E;">🧄 HSD AGENT</span>
-        <span style="background:#F5A623;color:white;padding:2px 10px;border-radius:20px;
-            font-size:11px;font-weight:700;margin-left:10px;">{st.session_state.label}</span>
-        <span style="color:#9CA3AF;font-size:12px;margin-left:12px;">
-            {now.strftime('%A, %d %B %Y  ·  %H:%M WIB')}</span>
-    </div>""",unsafe_allow_html=True)
-with tcol2:
-    if st.button('🚪 Keluar',use_container_width=True):
-        for k in ['ok','role','label','access']: st.session_state[k]=False if k=='ok' else (None if k!='access' else [])
-        st.session_state.page='home'; st.rerun()
+    header[data-testid="stHeader"] {
+        background: rgba(247, 241, 232, 0.82) !important;
+        backdrop-filter: blur(10px);
+    }
 
-# ── NAVIGATION BAR ─────────────────────────────────────────────────────────────
-nav_cols=st.columns(4)
-for i,(key,icon,label) in enumerate(MENUS):
-    with nav_cols[i]:
-        has=can(st.session_state.role,key)
-        is_active=st.session_state.page==key
-        if has:
-            if st.button(f'{icon}  {label}',use_container_width=True,
-                        type='primary' if is_active else 'secondary',key=f'nav_{key}'):
-                st.session_state.page=key; st.rerun()
-        else:
-            st.button(f'🔒  {label}',use_container_width=True,disabled=True,key=f'nav_{key}')
+    .block-container {
+        padding-top: 2rem !important;
+        padding-left: 2.4rem !important;
+        padding-right: 2.4rem !important;
+        max-width: 1400px !important;
+    }
 
-st.markdown('<hr style="margin:8px 0 16px;border-color:#E5E7EB;">',unsafe_allow_html=True)
+    /* SIDEBAR - JANGAN DIHAPUS */
+    section[data-testid="stSidebar"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        transform: translateX(0px) !important;
+        background: #050505 !important;
+        border-right: 1px solid #111827 !important;
+        width: 290px !important;
+        min-width: 290px !important;
+        max-width: 290px !important;
+    }
 
-# ── PAGES ──────────────────────────────────────────────────────────────────────
-page=st.session_state.page
+    section[data-testid="stSidebar"] > div {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        background: #050505 !important;
+        padding: 24px 18px !important;
+    }
 
-if page=='home':
-    st.markdown(f"""
-    <div class="card">
-        <h3 style="margin:0 0 4px;color:#1C1C1E;">Selamat datang, {st.session_state.label}! 👋</h3>
-        <p style="color:#9CA3AF;margin:0;font-size:13px;">{now.strftime('%A, %d %B %Y')}</p>
-    </div>""",unsafe_allow_html=True)
-    st.markdown("""
-    <div class="card">
-        <div style="font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;margin-bottom:12px;">PANDUAN PENGGUNAAN</div>
-        <div style="font-size:13px;color:#374151;line-height:1.8;">
-        📦 <b>Gudang</b>: Upload PDF resi per akun (HSD/HSS) dan waktu (Pagi/Siang/Sore) → Klik Proses → Download Excel<br>
-        📊 <b>Excel berisi</b>: Stok Fisik, Semua Resi, Rekap Kurir, Rekap SKU, Packing List, Ringkasan Hari Ini, Ringkasan Order, Kode Pengambilan Gojek<br>
-        ℹ️ <b>Variasi ( - )</b> = data variasi tidak tercantum di PDF resi kurir tersebut<br>
-        ⏳ <b>PDF besar</b> (6000+ resi) butuh waktu lebih lama, harap bersabar
-        </div>
-    </div>""",unsafe_allow_html=True)
+    section[data-testid="stSidebar"] * {
+        color: #F9FAFB !important;
+    }
 
-elif page=='gudang':
-    if not can(st.session_state.role,'gudang'): st.error('Akses ditolak.'); st.stop()
+    section[data-testid="stSidebar"] .stRadio label {
+        color: #F9FAFB !important;
+        font-weight: 600 !important;
+    }
 
-    st.markdown(f'<div class="card"><b style="font-size:16px;">📦 Upload PDF Resi</b><span style="color:#9CA3AF;font-size:12px;margin-left:12px;">{now.strftime("%d/%m/%Y %H:%M WIB")}</span></div>',unsafe_allow_html=True)
+    section[data-testid="stSidebar"] [role="radiogroup"] label {
+        background: #111827 !important;
+        border: 1px solid #1F2937 !important;
+        border-radius: 14px !important;
+        padding: 10px 12px !important;
+        margin-bottom: 8px !important;
+    }
 
-    uploads={}
-    # HSD
-    st.markdown('<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="background:#3B82F6;color:white;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:700;">HSD</span><span style="color:#3B82F6;font-weight:700;">Botol Hitam</span></div>',unsafe_allow_html=True)
-    c1,c2,c3=st.columns(3)
-    for col,w,k in [(c1,'PAGI','hsd_p'),(c2,'SIANG','hsd_s'),(c3,'SORE','hsd_r')]:
-        with col:
-            st.markdown(f'<div style="font-size:11px;font-weight:700;color:#6B7280;margin-bottom:4px;">{w}</div>',unsafe_allow_html=True)
-            f=st.file_uploader(f'HSD {w}',type='pdf',key=k,label_visibility='collapsed')
-            uploads[('HSD',w)]=f
-            st.markdown(f'<div class="{"slot-done" if f else "slot-hsd"}">{"✅ "+f.name[:18] if f else "📄 Pilih PDF"}</div>',unsafe_allow_html=True)
+    section[data-testid="stSidebar"] [role="radiogroup"] label:hover {
+        background: #1F2937 !important;
+    }
 
-    st.markdown('<br>',unsafe_allow_html=True)
-    # HSS
-    st.markdown('<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="background:#F97316;color:white;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:700;">HSS</span><span style="color:#F97316;font-weight:700;">Botol Merah</span></div>',unsafe_allow_html=True)
-    c4,c5,c6=st.columns(3)
-    for col,w,k in [(c4,'PAGI','hss_p'),(c5,'SIANG','hss_s'),(c6,'SORE','hss_r')]:
-        with col:
-            st.markdown(f'<div style="font-size:11px;font-weight:700;color:#6B7280;margin-bottom:4px;">{w}</div>',unsafe_allow_html=True)
-            f=st.file_uploader(f'HSS {w}',type='pdf',key=k,label_visibility='collapsed')
-            uploads[('HSS',w)]=f
-            st.markdown(f'<div class="{"slot-done" if f else "slot-hss"}">{"✅ "+f.name[:18] if f else "📄 Pilih PDF"}</div>',unsafe_allow_html=True)
+    .hsd-card {
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 22px;
+        padding: 22px;
+        box-shadow: 0 8px 26px rgba(15, 23, 42, 0.07);
+        margin-bottom: 18px;
+    }
 
-    st.markdown('<br>',unsafe_allow_html=True)
-    active=[(a,w,f) for (a,w),f in uploads.items() if f]
-    cb,ci=st.columns([2,3])
-    with cb:
-        proses=st.button('⚡  PROSES PDF → EXCEL',type='primary',use_container_width=True,disabled=not active)
-    with ci:
-        msg=f'✅ {len(active)} PDF siap' if active else 'Upload minimal 1 PDF'
-        clr='#22C55E' if active else '#9CA3AF'
-        st.markdown(f'<div style="padding:14px 0;color:{clr};font-weight:600;font-size:13px;">{msg}</div>',unsafe_allow_html=True)
+    .hsd-title {
+        font-size: 34px;
+        font-weight: 850;
+        color: #111827;
+        margin-bottom: 4px;
+        letter-spacing: -0.03em;
+    }
 
-    if proses and active:
-        from parser import process_pdf
-        from excel_writer import write_excel_multi
-        all_rows=[]; pb=st.progress(0,'Memulai...'); log=st.empty(); logs=[]
-        for fi,(akun,waktu,fo) in enumerate(active):
-            logs.append(f'📄 **{akun} {waktu}** — `{fo.name}`')
-            log.markdown('\n\n'.join(logs))
-            with tempfile.NamedTemporaryFile(delete=False,suffix='.pdf') as tmp:
-                tmp.write(fo.read()); tp=tmp.name
-            def prog(cur,tot,fi=fi,tf=len(active),a=akun,w=waktu):
-                pb.progress(int((fi/tf+cur/tot/tf)*100),text=f'{a} {w}: hal {cur}/{tot}')
+    .hsd-subtitle {
+        font-size: 15px;
+        color: #6B7280;
+        margin-bottom: 20px;
+    }
+
+    .hsd-pill {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        margin-right: 6px;
+    }
+
+    .pill-blue {
+        color: #1D4ED8;
+        background: #DBEAFE;
+    }
+
+    .pill-orange {
+        color: #C2410C;
+        background: #FFEDD5;
+    }
+
+    .pill-dark {
+        color: #F9FAFB;
+        background: #111827;
+    }
+
+    .metric-card {
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+    }
+
+    .metric-label {
+        font-size: 13px;
+        color: #6B7280;
+        margin-bottom: 5px;
+    }
+
+    .metric-value {
+        font-size: 26px;
+        font-weight: 850;
+        color: #111827;
+    }
+
+    div.stButton > button {
+        width: 100%;
+        background: #111827 !important;
+        color: #FFFFFF !important;
+        border: 0 !important;
+        border-radius: 14px !important;
+        padding: 0.75rem 1rem !important;
+        font-weight: 800 !important;
+    }
+
+    div.stButton > button:hover {
+        background: #0F172A !important;
+        color: #FFFFFF !important;
+        border: 0 !important;
+    }
+
+    div[data-testid="stFileUploader"] {
+        background: #FFFFFF;
+        border: 1px dashed #CBD5E1;
+        border-radius: 18px;
+        padding: 12px;
+    }
+
+    div[data-testid="stFileUploader"] section {
+        background: #F8FAFC !important;
+        border-radius: 14px !important;
+    }
+
+    .small-muted {
+        font-size: 13px;
+        color: #6B7280;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# =========================
+# SESSION STATE
+# =========================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+if "selected_menu" not in st.session_state:
+    st.session_state.selected_menu = "Gudang"
+
+
+# =========================
+# HELPERS
+# =========================
+def now_wib() -> datetime.datetime:
+    return datetime.datetime.now(ZoneInfo("Asia/Jakarta"))
+
+
+def save_uploaded_files(upload_map: dict) -> list[dict]:
+    saved = []
+    temp_dir = Path(tempfile.mkdtemp(prefix="hsd_agent_"))
+
+    for group_name, payload in upload_map.items():
+        brand = payload["brand"]
+        shift = payload["shift"]
+        files = payload["files"] or []
+
+        for uploaded in files:
+            safe_name = uploaded.name.replace("/", "_").replace("\\", "_")
+            file_path = temp_dir / safe_name
+            file_path.write_bytes(uploaded.getbuffer())
+
+            saved.append(
+                {
+                    "path": str(file_path),
+                    "filename": uploaded.name,
+                    "brand": brand,
+                    "shift": shift,
+                    "group": group_name,
+                }
+            )
+
+    return saved
+
+
+def call_parser(saved_files: list[dict]):
+    if hsd_parser is None:
+        raise RuntimeError("File parser.py belum terbaca / error import. Pastikan parser.py ada di repo.")
+
+    candidate_names = [
+        "parse_uploaded_files",
+        "parse_files",
+        "parse_pdf_files",
+        "parse_all_pdfs",
+        "process_pdfs",
+    ]
+
+    for name in candidate_names:
+        fn = getattr(hsd_parser, name, None)
+        if callable(fn):
             try:
-                rows,_=process_pdf(tp,progress_callback=prog)
-                for r in rows: r['akun']=akun; r['waktu']=waktu
-                all_rows.extend(rows)
-                logs.append(f'✅ {akun} {waktu}: **{len(rows)} baris**')
-                log.markdown('\n\n'.join(logs))
-            except Exception as e:
-                logs.append(f'❌ {akun} {waktu}: {e}')
-                log.markdown('\n\n'.join(logs))
-            finally: os.unlink(tp)
+                return fn(saved_files)
+            except TypeError:
+                return fn([item["path"] for item in saved_files])
 
-        if all_rows:
-            pb.progress(95,'Membuat Excel...')
-            with tempfile.NamedTemporaryFile(delete=False,suffix='.xlsx') as tmp: txls=tmp.name
-            write_excel_multi(all_rows,txls)
-            out=BytesIO()
-            with open(txls,'rb') as f: out.write(f.read())
-            os.unlink(txls); out.seek(0)
-            pb.progress(100,'✅ Selesai!')
-            u=len(set(r['no_resi'] for r in all_rows)); q=sum(r['qty'] for r in all_rows)
-            st.markdown('<br>',unsafe_allow_html=True)
-            for col,val,lbl in zip(st.columns(4),[u,q,len(active),now.strftime('%H:%M')],
-                                    ['Total Resi','Total Qty','PDF Diproses','Waktu Proses']):
-                with col:
-                    st.markdown(f'<div class="metric-box"><div class="metric-val">{val}</div><div class="metric-lbl">{lbl}</div></div>',unsafe_allow_html=True)
-            st.markdown('<br>',unsafe_allow_html=True)
-            st.download_button('📥  Download Excel Rekap',data=out,
-                file_name=f'HSD_REKAP_{now.strftime("%Y%m%d_%H%M")}.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                use_container_width=True,type='primary')
+    single_candidates = ["parse_pdf", "extract_resi", "read_pdf"]
 
-elif page in ('konten','live'):
-    label={'konten':'🎬 Divisi Konten','live':'📡 Divisi Live'}[page]
-    if not can(st.session_state.role,page): st.error('Akses ditolak.'); st.stop()
-    st.markdown(f'<div class="card"><h3>{label}</h3><p style="color:#9CA3AF;">Fitur ini segera hadir. 🚧</p></div>',unsafe_allow_html=True)
+    for name in single_candidates:
+        fn = getattr(hsd_parser, name, None)
+
+        if callable(fn):
+            rows = []
+
+            for item in saved_files:
+                result = fn(item["path"])
+
+                if isinstance(result, list):
+                    for row in result:
+                        if isinstance(row, dict):
+                            row.setdefault("brand", item["brand"])
+                            row.setdefault("shift", item["shift"])
+                            row.setdefault("source_file", item["filename"])
+                        rows.append(row)
+
+                elif isinstance(result, dict):
+                    result.setdefault("brand", item["brand"])
+                    result.setdefault("shift", item["shift"])
+                    result.setdefault("source_file", item["filename"])
+                    rows.append(result)
+
+            return rows
+
+    raise RuntimeError(
+        "Tidak menemukan function parser yang cocok. Tambahkan salah satu: "
+        "parse_uploaded_files(), parse_files(), parse_pdf_files(), parse_all_pdfs(), "
+        "process_pdfs(), atau parse_pdf()."
+    )
+
+
+def call_excel_writer(parsed_data, saved_files: list[dict]) -> bytes:
+    if hsd_excel is None:
+        raise RuntimeError("File excel_writer.py belum terbaca / error import. Pastikan excel_writer.py ada di repo.")
+
+    output_path = Path(tempfile.mkdtemp(prefix="hsd_excel_")) / "rekap_resi_hsd.xlsx"
+
+    candidate_names = [
+        "write_excel",
+        "create_excel",
+        "generate_excel",
+        "build_excel",
+        "make_excel",
+        "export_excel",
+    ]
+
+    last_error = None
+
+    for name in candidate_names:
+        fn = getattr(hsd_excel, name, None)
+
+        if callable(fn):
+            for args in [
+                (parsed_data, str(output_path)),
+                (parsed_data, saved_files, str(output_path)),
+                (parsed_data,),
+            ]:
+                try:
+                    result = fn(*args)
+
+                    if isinstance(result, bytes):
+                        return result
+
+                    if isinstance(result, (str, Path)) and Path(result).exists():
+                        return Path(result).read_bytes()
+
+                    if output_path.exists():
+                        return output_path.read_bytes()
+
+                except TypeError as e:
+                    last_error = e
+                    continue
+
+    if last_error:
+        raise RuntimeError(f"Excel writer ditemukan, tapi format argumennya tidak cocok: {last_error}")
+
+    raise RuntimeError(
+        "Tidak menemukan function excel writer yang cocok. Tambahkan salah satu: "
+        "write_excel(), create_excel(), generate_excel(), build_excel(), make_excel(), atau export_excel()."
+    )
+
+
+def render_metric(label: str, value: str):
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def do_logout():
+    st.session_state.logged_in = False
+    st.session_state.role = None
+    st.rerun()
+
+
+# =========================
+# LOGIN PAGE
+# =========================
+def login_page():
+    left, middle, right = st.columns([1, 1.1, 1])
+
+    with middle:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+
+        st.markdown(
+            """
+            <div class="hsd-card">
+                <div style="font-size:42px; text-align:center;">🧄</div>
+                <div style="font-size:32px; font-weight:900; text-align:center; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
+                <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px;">Operational System</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        pin = st.text_input("Masukkan PIN", type="password", placeholder="PIN divisi")
+        login = st.button("Masuk")
+
+        if login:
+            if pin in ROLES:
+                st.session_state.logged_in = True
+                st.session_state.role = ROLES[pin]
+
+                if ROLES[pin] == "Manager/BOD":
+                    st.session_state.selected_menu = "Gudang"
+                else:
+                    st.session_state.selected_menu = ROLES[pin]
+
+                st.rerun()
+
+            else:
+                st.error("PIN salah. Coba lagi.")
+
+        st.caption("PIN Gudang: 1234 | Konten: 2345 | Live: 3456 | Manager/BOD: 0000")
+
+
+# =========================
+# SIDEBAR
+# =========================
+def render_sidebar():
+    with st.sidebar:
+        st.markdown("# 🧄 HSD AGENT")
+        st.caption("Operational System")
+        st.markdown("---")
+
+        role = st.session_state.role or "-"
+        st.markdown(f"**Role aktif:** {role}")
+        st.caption(now_wib().strftime("%A, %d %B %Y • %H:%M WIB"))
+        st.markdown("---")
+
+        if role == "Manager/BOD":
+            available_menu = DIVISIONS
+        else:
+            available_menu = [role] if role in DIVISIONS else ["Gudang"]
+
+        default_index = 0
+        if st.session_state.selected_menu in available_menu:
+            default_index = available_menu.index(st.session_state.selected_menu)
+
+        selected = st.radio(
+            "Menu Divisi",
+            available_menu,
+            index=default_index,
+        )
+
+        st.session_state.selected_menu = selected
+
+        st.markdown("---")
+
+        if st.button("Keluar"):
+            do_logout()
+
+
+# =========================
+# PAGES
+# =========================
+def page_header(title: str, subtitle: str):
+    top_left, top_right = st.columns([3, 1])
+
+    with top_left:
+        st.markdown(f"<div class='hsd-title'>{title}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='hsd-subtitle'>{subtitle}</div>", unsafe_allow_html=True)
+
+    with top_right:
+        st.markdown(
+            f"""
+            <div class="hsd-card" style="padding:16px; text-align:right;">
+                <div class="small-muted">Waktu sekarang</div>
+                <div style="font-weight:900; font-size:20px; color:#111827;">{now_wib().strftime('%H:%M')}</div>
+                <div class="small-muted">WIB</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def gudang_page():
+    page_header(
+        "Gudang",
+        "Upload PDF resi HSD/HSS, proses otomatis, lalu download Excel rekap.",
+    )
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        render_metric("Limit Upload", "2GB")
+
+    with c2:
+        render_metric("Format", "PDF → Excel")
+
+    with c3:
+        render_metric("Zona Waktu", "WIB")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.markdown(
+        """
+        <div class="hsd-card">
+            <span class="hsd-pill pill-blue">HSD</span>
+            <span class="hsd-pill pill-orange">HSS</span>
+            <span class="hsd-pill pill-dark">Gudang</span>
+            <div style="font-size:20px; font-weight:850; color:#111827; margin-top:12px;">Upload PDF Resi</div>
+            <div class="small-muted">Upload sesuai brand dan shift. Bisa upload lebih dari satu file di setiap bagian.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    upload_map = {}
+
+    hsd_col, hss_col = st.columns(2)
+
+    with hsd_col:
+        st.markdown("### HSD")
+
+        for label, brand, shift in UPLOAD_GROUPS[:3]:
+            files = st.file_uploader(
+                label,
+                type=["pdf"],
+                accept_multiple_files=True,
+                key=f"upload_{brand}_{shift}",
+            )
+
+            upload_map[label] = {
+                "brand": brand,
+                "shift": shift,
+                "files": files,
+            }
+
+    with hss_col:
+        st.markdown("### HSS")
+
+        for label, brand, shift in UPLOAD_GROUPS[3:]:
+            files = st.file_uploader(
+                label,
+                type=["pdf"],
+                accept_multiple_files=True,
+                key=f"upload_{brand}_{shift}",
+            )
+
+            upload_map[label] = {
+                "brand": brand,
+                "shift": shift,
+                "files": files,
+            }
+
+    total_files = sum(len(payload["files"] or []) for payload in upload_map.values())
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.info(f"Total file terupload: {total_files} PDF")
+
+    process = st.button("Proses PDF → Excel")
+
+    if process:
+        if total_files == 0:
+            st.warning("Upload minimal 1 file PDF dulu.")
+            return
+
+        try:
+            with st.status("Memproses PDF...", expanded=True) as status:
+                st.write("Menyimpan file sementara...")
+                saved_files = save_uploaded_files(upload_map)
+
+                st.write("Membaca resi dari PDF...")
+                parsed_data = call_parser(saved_files)
+
+                parsed_count = len(parsed_data) if hasattr(parsed_data, "__len__") else "-"
+                st.write(f"Data terbaca: {parsed_count} baris/resi")
+
+                st.write("Membuat Excel...")
+                excel_bytes = call_excel_writer(parsed_data, saved_files)
+
+                status.update(label="Selesai", state="complete", expanded=False)
+
+            filename = f"Rekap_Resi_HSD_{now_wib().strftime('%Y%m%d_%H%M')}_WIB.xlsx"
+
+            st.success("Excel berhasil dibuat.")
+
+            st.download_button(
+                label="Download Excel Rekap",
+                data=excel_bytes,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+        except Exception as e:
+            st.error("Proses gagal.")
+            st.exception(e)
+            st.caption(
+                "Kalau error terjadi di bagian parser/excel_writer, kirim isi error-nya atau file parser.py dan excel_writer.py supaya bisa disesuaikan."
+            )
+
+
+def konten_page():
+    page_header("Konten", "Area kerja divisi konten HSD.")
+
+    st.markdown(
+        """
+        <div class="hsd-card">
+            <div style="font-size:20px; font-weight:850; color:#111827;">Coming Soon</div>
+            <div class="small-muted">Nanti bagian ini bisa diisi kalender konten, ide script, approval, dan database asset.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def live_page():
+    page_header("Live", "Area kerja divisi live HSD.")
+
+    st.markdown(
+        """
+        <div class="hsd-card">
+            <div style="font-size:20px; font-weight:850; color:#111827;">Coming Soon</div>
+            <div class="small-muted">Nanti bagian ini bisa diisi jadwal live, target GMV, host, produk, dan evaluasi performa.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =========================
+# MAIN ROUTER
+# =========================
+def main():
+    if not st.session_state.logged_in:
+        login_page()
+        return
+
+    render_sidebar()
+
+    selected_menu = st.session_state.selected_menu
+
+    if selected_menu == "Gudang":
+        gudang_page()
+    elif selected_menu == "Konten":
+        konten_page()
+    elif selected_menu == "Live":
+        live_page()
+    else:
+        gudang_page()
+
+
+if __name__ == "__main__":
+    main()
