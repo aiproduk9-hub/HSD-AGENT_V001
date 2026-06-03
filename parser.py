@@ -1,261 +1,717 @@
-import re, pdfplumber
+import streamlit as st
+import datetime
+import tempfile
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
-def clean(s): return ' '.join(str(s).split()) if s else ''
+# =========================
+# PAGE CONFIG
+# =========================
+st.set_page_config(
+    page_title="HSD AGENT",
+    page_icon="🧄",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-SKU_FIX = {
-    'BG-220GR-1-BOTOL-BG': 'BG-220GR-1-BOTOL-BG-SKU',
-    'BG-220GR-1-BOTOL-BH': 'BG-220GR-1-BOTOL-BH-SKU',
-    'BG-100GR-1-BOTOL-BG': 'BG-100GR-1-BOTOL-BG-SKU',
-    'BG-100GR-1-BOTOL-BH': 'BG-100GR-1-BOTOL-BH-SKU',
-    'BG-DRINK-PROMO-1-BTL': 'BG-DRINK-PROMO-1-BTL-ORI',
-    'BG-DRINK-PROMO-2-BTL': 'BG-DRINK-PROMO-2-BTL-ORI',
+# =========================
+# SAFE IMPORTS
+# =========================
+try:
+    import parser as hsd_parser
+except Exception:
+    hsd_parser = None
+
+try:
+    import excel_writer as hsd_excel
+except Exception:
+    hsd_excel = None
+
+
+# =========================
+# CONSTANTS
+# =========================
+ROLES = {
+    "1234": "Gudang",
+    "2345": "Konten",
+    "3456": "Live",
+    "0000": "Manager/BOD",
 }
-def normalize_product(sku, nama_produk):
-    """Normalisasi nama produk berdasarkan pola SKU"""
-    s = sku.upper()
-    if any(x in s for x in ['100GR','100 GR']): return 'Black Garlic 100gr'
-    if any(x in s for x in ['220GR','220 GR']): return 'Black Garlic 220gr'
-    if any(x in s for x in ['500GR','500 GR']): return 'Black Garlic 500gr'
-    if 'DRINK' in s and any(x in s for x in ['PEACH','PCH']): return 'Drink BG Peach'
-    if 'DRINK' in s: return 'Drink BG Original'
-    if any(x in s for x in ['FLORA','MF-','MULTIFLORA']): return 'Madu Multi Flora 260gr'
-    if any(x in s for x in ['KURMA','MK-','BUNGA']): return 'Madu Bunga Kurma 260gr'
-    n = nama_produk.upper() if nama_produk else ''
-    if 'PEACH' in n and 'DRINK' in n: return 'Drink BG Peach'
-    if 'DRINK' in n: return 'Drink BG Original'
-    if '100' in n and ('GR' in n or 'GRAM' in n): return 'Black Garlic 100gr'
-    if '220' in n and ('GR' in n or 'GRAM' in n): return 'Black Garlic 220gr'
-    if '500' in n and ('GR' in n or 'GRAM' in n): return 'Black Garlic 500gr'
-    if any(x in n for x in ['FLORA','MULTI FLORA']): return 'Madu Multi Flora 260gr'
-    if any(x in n for x in ['KURMA','BUNGA KURMA']): return 'Madu Bunga Kurma 260gr'
-    return nama_produk or sku
 
-SKU_FIX = {
-    'BG-220GR-1-BOTOL-BG': 'BG-220GR-1-BOTOL-BG-SKU',
-    'BG-220GR-1-BOTOL-BH': 'BG-220GR-1-BOTOL-BH-SKU',
-    'BG-100GR-1-BOTOL-BG': 'BG-100GR-1-BOTOL-BG-SKU',
-    'BG-100GR-1-BOTOL-BH': 'BG-100GR-1-BOTOL-BH-SKU',
-    'BG-DRINK-PROMO-1-BTL': 'BG-DRINK-PROMO-1-BTL-ORI',
-    'BG-DRINK-PROMO-2-BTL': 'BG-DRINK-PROMO-2-BTL-ORI',
-}
-def fix_sku(s):
-    s=s.strip('-').strip()
-    for k,v in SKU_FIX.items():
-        if s.startswith(k): return v
-    return s
-    s=s.strip('-').strip()
-    for k,v in SKU_FIX.items():
-        if s.startswith(k): return v
-    return s
+DIVISIONS = ["Gudang", "Konten", "Live"]
 
-def detect(text):
-    t=text.upper()
-    if re.search(r'SPXID\d+',text): return 'Shopee','Shopee Express','ECO'
-    if 'JET.CO.ID' in t or re.search(r'\bJX\d{10}\b',text):
-        pl='TikTok Shop' if 'TIKTOK' in t else 'Tokopedia/TikTok'
-        sv='EZ'
-        for s in ['EZ','NDD','ECO','REG']:
-            if re.search(r'\b'+s+r'\b',text[:300].upper()): sv=s; break
-        return pl,'J&T Express',sv
-    if re.search(r'\bGTL\d{8,12}\b',text):
-        pl='TikTok Shop' if 'TIKTOK' in t else 'Tokopedia/TikTok'
-        return pl,'GTL','REG'
-    if re.search(r'No\.\s*Resi:\s*0046\d+|No\.\s*Resi:\s*00296',text) or \
-       re.search(r'\b0046\d{8,10}\b',text) or \
-       re.search(r'\b00296\d{7,9}\b',text):
-        pl='TikTok Shop' if 'TIKTOK' in t else 'Tokopedia/TikTok'
-        return pl,'SiCepat','REG'
-    if re.search(r'No\.\s*Resi:\s*CM\d+',text) or re.search(r'\bBDO\d+\b',text):
-        return 'Shopee','Wahana','Reguler'
-    if re.search(r'\bAAJ\w+\b',text) or 'ANTERAJA' in t: return 'Shopee','Anteraja','REG'
-    if re.search(r'\bLEX\w+\b',text) or 'LAZADA' in t: return 'Lazada','LEX','REG'
-    return 'Unknown','Unknown','-'
+UPLOAD_GROUPS = [
+    ("HSD Pagi", "HSD", "Pagi"),
+    ("HSD Siang", "HSD", "Siang"),
+    ("HSD Sore", "HSD", "Sore"),
+    ("HSS Pagi", "HSS", "Pagi"),
+    ("HSS Siang", "HSS", "Siang"),
+    ("HSS Sore", "HSS", "Sore"),
+]
 
-def get_resi(text):
-    for p in [r'\b(JX\d{10})\b',r'\b(GTL\d{8,12})\b',
-              r'No\.\s*Resi:\s*(0046\d+)',r'No\.\s*Resi:\s*(00296\d+)',
-              r'\b(0046\d{8,10})\b',
-              r'\b(00296\d{7,9})\b',
-              r'\b(SPXID\d{10,15})\b',r'No\.\s*Resi:\s*(CM\d+)',
-              r'\b(AAJ\w{8,})\b',r'\b(LEX\w{8,})\b']:
-        m=re.search(p,text)
-        if m: return m.group(1)
-    return ''
 
-def get_pesanan(text):
-    for p in [r'No\.?\s*Pesanan[:\s]+([\w]+)',r'Order\s*I[Dd][:\s]+([\d]+)',
-              r'Pesan:\s*\(([\w]+)\)']:
-        m=re.search(p,text)
-        if m: return m.group(1)
-    return ''
+# =========================
+# CSS
+# =========================
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: #F7F1E8;
+        color: #111827;
+    }
 
-def get_penerima(text):
-    m=re.search(r'Penerima\s*:\s*([^\n(]+)',text)
-    if m:
-        n=clean(m.group(1).split('(')[0])
-        if 1<len(n)<60: return n
-    m2=re.search(r'Receiver\s+([^\n(]+)',text)
-    if m2:
-        n=clean(m2.group(1).split('(')[0])
-        if 1<len(n)<60: return n
-    return ''
+    header[data-testid="stHeader"] {
+        background: rgba(247, 241, 232, 0.82) !important;
+        backdrop-filter: blur(10px);
+    }
 
-def get_alamat_tiktok(text):
-    lines=text.split('\n'); capture=False; addr=[]
-    for line in lines:
-        l=clean(line)
-        # Support: "Penerima :" (TikTok/Shopee) DAN "Receiver" (GTL)
-        if re.search(r'Penerima\s*:|Receiver\s+',line): capture=True; continue
-        if capture:
-            if re.search(r'Weight\s*:|Ship\s*:|Order\s*Id|Estimated|Shipping Date|Sender\s|TT Order|In transit',line,re.I): break
-            if l and not re.search(r'^\(?\+?62|^Pengirim|^Sender|DKI JAKARTA',l) and len(l)>4:
-                addr.append(l)
-            if len(addr)>=5: break
-    return ' '.join(addr)
+    .block-container {
+        padding-top: 2rem !important;
+        padding-left: 2.4rem !important;
+        padding-right: 2.4rem !important;
+        max-width: 1400px !important;
+    }
 
-def get_alamat_shopee(text):
-    lines=text.split('\n')
-    # Cara 1: cari baris KAB/KOTA
-    for i,line in enumerate(lines):
-        l=clean(line)
-        if re.search(r'KAB\.|KOTA JAKARTA|JAWA|SUMATERA|KALIMANTAN|SULAWESI|BALI|BANTEN|NTB|RIAU|PAPUA|ACEH|KOTA\s+\w+',l.upper()):
-            addr=[]
-            for j in range(max(0,i-3),min(i+3,len(lines))):
-                lj=clean(lines[j])
-                if lj and len(lj)>4 and not re.search(r'Penerima|Pengirim|HSD|6281|COD|Berat|Batas|No\.|Reguler|CASHLESS|SPXID|BDO|Resi:|SKU|Variasi',lj,re.I):
-                    addr.append(lj)
-            if addr: return ' '.join(addr[:4])
-    # Cara 2: ambil teks setelah penerima sampai sebelum tabel produk
-    m=re.search(r'Penerima\s*:\s*[^\n]+\n(.*?)(?:Berat:|No\.Pesanan:|#\s+Nama)',text,re.DOTALL)
-    if m:
-        raw=m.group(1)
-        lns=[clean(l) for l in raw.split('\n') if len(clean(l))>5]
-        lns=[l for l in lns if not re.search(r'^\d{10,}|^Pengirim|^HSD|CASHLESS|COD|Resi:|SKU',l,re.I)]
-        if lns: return ' '.join(lns[:3])
-    return ''
+    /* SIDEBAR */
+    section[data-testid="stSidebar"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        transform: translateX(0px) !important;
+        background: #050505 !important;
+        border-right: 1px solid #111827 !important;
+        width: 290px !important;
+        min-width: 290px !important;
+        max-width: 290px !important;
+    }
 
-def parse_tiktok_products(text):
-    """TikTok/J&T/GTL: Product Name | SKU | Seller SKU | Qty"""
-    items=[]
-    m=re.search(r'Product Name\s+SKU\s+Seller SKU\s+Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|$)',text)
-    if not m: return items
-    raw=[l.strip() for l in m.group(1).split('\n') if l.strip()]
-    main_re=re.compile(r'^(.*?)\s+(Default|220\s*GR|\b1\b|[A-Z0-9]{2,10})\s+([A-Z][A-Z0-9]*-[A-Z0-9\-]+)\s+(\d{1,2})\s*$')
-    sku_suf=re.compile(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\s*$')
-    i=0
-    while i<len(raw):
-        mm=main_re.match(raw[i])
-        if mm:
-            prod_part=mm.group(1).strip()
-            sys_sku=mm.group(2).strip()
-            seller_sku=mm.group(3).strip()
-            qty=int(mm.group(4))
-            j=i+1
-            while j<len(raw):
-                if main_re.match(raw[j]): break
-                sf=sku_suf.search(raw[j])
-                if sf: seller_sku+=sf.group(1); j+=1; continue
-                j+=1; break
-            seller_sku=re.sub(r'\s+','',seller_sku)
-            seller_sku=fix_sku(seller_sku)
-            nama=re.sub(r'^\d+\s*','',prod_part).strip()
-            nama=re.sub(r'\b(Default|220\s*GR)\s*$','',nama).strip().rstrip(',')
-            variasi='' if sys_sku.upper()=='DEFAULT' else sys_sku
-            # Fallback variasi dari field "Barang : 220 GR" di J&T
-            if not variasi:
-                bm=re.search(r'Barang\s*:\s*([^\n,]+)',text)
-                if bm: variasi=bm.group(1).strip()
-            items.append({'nama_produk':nama,'sku':seller_sku,'variasi':variasi,'qty':qty})
-            i=j
-        else: i+=1
-    return items
+    section[data-testid="stSidebar"] > div {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        background: #050505 !important;
+        padding: 24px 18px !important;
+    }
 
-def parse_shopee_products(text):
-    """Shopee/Wahana/SiCepat: # | Nama Produk | SKU | Variasi | Qty"""
-    items=[]
-    m=re.search(r'#\s+Nama Produk\s+SKU\s+Variasi\s+Qty([\s\S]+?)(?:Pesan:|$)',text)
-    if not m: return items
-    lines=[l.strip() for l in m.group(1).split('\n') if l.strip()]
-    main_re=re.compile(r'^(\d+)\s+.+?(BG-[A-Z0-9\-]+)\s+(220 GR|ORIGINAL \d+\s*BOTOL|DEFAULT|[\w\s]{2,25}?)\s+(\d{1,2})\s*$')
-    i=0
-    while i<len(lines):
-        mm=main_re.match(lines[i])
-        if mm:
-            sku_p=mm.group(2).rstrip('-')
-            variasi=mm.group(3).strip()
-            qty=int(mm.group(4))
-            # Nama produk: teks antara nomor dan BG-
-            rest=lines[i]
-            nm=re.match(r'^\d+\s+',rest)
-            if nm:
-                after=rest[nm.end():]
-                bg=after.find(sku_p[:6])
-                nama=after[:bg].strip().rstrip(',') if bg>0 else ''
-            else: nama=''
-            # Scan lanjutan untuk complete SKU
-            j=i+1; last_cap=''
-            while j<len(lines) and not main_re.match(lines[j]):
-                ce=re.search(r'\b([A-Z][A-Z0-9]*)\s*$',lines[j])
-                if ce: last_cap=ce.group(1)
-                if not nama:
-                    rn=re.sub(r'[A-Z0-9\-]+\s*$','',lines[j]).strip()
-                    if rn and len(rn)>3: nama=rn.rstrip(',')
-                j+=1
-            if last_cap and last_cap not in sku_p and last_cap not in ('GR','BOTOL','SKU'):
-                full_sku=sku_p+('-' if not sku_p.endswith('-') else '')+last_cap
-            elif last_cap=='SKU':
-                full_sku=sku_p+'-SKU'
+    section[data-testid="stSidebar"] * {
+        color: #F9FAFB !important;
+    }
+
+    section[data-testid="stSidebar"] .stRadio label {
+        color: #F9FAFB !important;
+        font-weight: 600 !important;
+    }
+
+    section[data-testid="stSidebar"] [role="radiogroup"] label {
+        background: #111827 !important;
+        border: 1px solid #1F2937 !important;
+        border-radius: 14px !important;
+        padding: 10px 12px !important;
+        margin-bottom: 8px !important;
+    }
+
+    section[data-testid="stSidebar"] [role="radiogroup"] label:hover {
+        background: #1F2937 !important;
+    }
+
+    .hsd-card {
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 22px;
+        padding: 22px;
+        box-shadow: 0 8px 26px rgba(15, 23, 42, 0.07);
+        margin-bottom: 18px;
+    }
+
+    .hsd-title {
+        font-size: 34px;
+        font-weight: 850;
+        color: #111827;
+        margin-bottom: 4px;
+        letter-spacing: -0.03em;
+    }
+
+    .hsd-subtitle {
+        font-size: 15px;
+        color: #6B7280;
+        margin-bottom: 20px;
+    }
+
+    .hsd-pill {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        margin-right: 6px;
+    }
+
+    .pill-blue {
+        color: #1D4ED8;
+        background: #DBEAFE;
+    }
+
+    .pill-orange {
+        color: #C2410C;
+        background: #FFEDD5;
+    }
+
+    .pill-dark {
+        color: #F9FAFB;
+        background: #111827;
+    }
+
+    .metric-card {
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+    }
+
+    .metric-label {
+        font-size: 13px;
+        color: #6B7280;
+        margin-bottom: 5px;
+    }
+
+    .metric-value {
+        font-size: 26px;
+        font-weight: 850;
+        color: #111827;
+    }
+
+    div.stButton > button {
+        width: 100%;
+        background: #111827 !important;
+        color: #FFFFFF !important;
+        border: 0 !important;
+        border-radius: 14px !important;
+        padding: 0.75rem 1rem !important;
+        font-weight: 800 !important;
+    }
+
+    div.stButton > button:hover {
+        background: #0F172A !important;
+        color: #FFFFFF !important;
+        border: 0 !important;
+    }
+
+    div[data-testid="stFormSubmitButton"] button {
+        width: 100%;
+        background: #111827 !important;
+        color: #FFFFFF !important;
+        border: 0 !important;
+        border-radius: 14px !important;
+        padding: 0.75rem 1rem !important;
+        font-weight: 800 !important;
+    }
+
+    /* FILE UPLOADER */
+    div[data-testid="stFileUploader"] {
+        background: #FFFFFF;
+        border: 1px dashed #CBD5E1;
+        border-radius: 18px;
+        padding: 12px;
+    }
+
+    div[data-testid="stFileUploader"] section {
+        background: #F8FAFC !important;
+        border-radius: 14px !important;
+    }
+
+    div[data-testid="stFileUploader"] * {
+        color: #111827 !important;
+        opacity: 1 !important;
+    }
+
+    div[data-testid="stFileUploader"] label,
+    div[data-testid="stFileUploader"] small,
+    div[data-testid="stFileUploader"] p,
+    div[data-testid="stFileUploader"] span {
+        color: #111827 !important;
+        opacity: 1 !important;
+    }
+
+    div[data-testid="stFileUploader"] button {
+        background: #111827 !important;
+        color: #FFFFFF !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+    }
+
+    div[data-testid="stFileUploader"] button * {
+        color: #FFFFFF !important;
+    }
+
+    .small-muted {
+        font-size: 13px;
+        color: #6B7280;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# =========================
+# SESSION STATE
+# =========================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+if "selected_menu" not in st.session_state:
+    st.session_state.selected_menu = "Gudang"
+
+if "upload_reset_counter" not in st.session_state:
+    st.session_state.upload_reset_counter = 0
+
+
+# =========================
+# HELPERS
+# =========================
+def now_wib() -> datetime.datetime:
+    return datetime.datetime.now(ZoneInfo("Asia/Jakarta"))
+
+
+def save_uploaded_files(upload_map: dict) -> list[dict]:
+    saved = []
+    temp_dir = Path(tempfile.mkdtemp(prefix="hsd_agent_"))
+
+    for group_name, payload in upload_map.items():
+        brand = payload["brand"]
+        shift = payload["shift"]
+        files = payload["files"] or []
+
+        for uploaded in files:
+            safe_name = uploaded.name.replace("/", "_").replace("\\", "_")
+            file_path = temp_dir / safe_name
+            file_path.write_bytes(uploaded.getbuffer())
+
+            saved.append(
+                {
+                    "path": str(file_path),
+                    "filename": uploaded.name,
+                    "brand": brand,
+                    "shift": shift,
+                    "group": group_name,
+                }
+            )
+
+    return saved
+
+
+def call_parser(saved_files: list[dict]):
+    if hsd_parser is None:
+        raise RuntimeError("File parser.py belum terbaca / error import. Pastikan parser.py ada di repo.")
+
+    all_rows = []
+    all_errors = []
+
+    # Sesuai parser.py repo lu:
+    # process_pdf(pdf_path, progress_callback=None)
+    # return all_rows, errors
+    if hasattr(hsd_parser, "process_pdf") and callable(hsd_parser.process_pdf):
+        for item in saved_files:
+            result = hsd_parser.process_pdf(item["path"])
+
+            rows = []
+            errors = []
+
+            if isinstance(result, tuple):
+                rows = result[0] if len(result) > 0 else []
+                errors = result[1] if len(result) > 1 else []
+            elif isinstance(result, list):
+                rows = result
+            elif isinstance(result, dict):
+                rows = [result]
+
+            for row in rows:
+                if isinstance(row, dict):
+                    row.setdefault("brand", item["brand"])
+                    row.setdefault("shift", item["shift"])
+                    row.setdefault("source_file", item["filename"])
+                    row.setdefault("group", item["group"])
+                all_rows.append(row)
+
+            if errors:
+                for err in errors:
+                    all_errors.append(f"{item['filename']} - {err}")
+
+        if all_errors:
+            st.warning(f"Ada {len(all_errors)} catatan error saat baca PDF, tapi data yang berhasil tetap diproses.")
+            with st.expander("Lihat catatan error PDF"):
+                for err in all_errors[:100]:
+                    st.write(err)
+
+        return all_rows
+
+    raise RuntimeError(
+        "Tidak menemukan function process_pdf() di parser.py. Pastikan parser.py punya function process_pdf(pdf_path, progress_callback=None)."
+    )
+
+
+def call_excel_writer(parsed_data, saved_files: list[dict]) -> bytes:
+    if hsd_excel is None:
+        raise RuntimeError("File excel_writer.py belum terbaca / error import. Pastikan excel_writer.py ada di repo.")
+
+    output_path = Path(tempfile.mkdtemp(prefix="hsd_excel_")) / "rekap_resi_hsd.xlsx"
+
+    candidate_names = [
+        "write_excel",
+        "create_excel",
+        "generate_excel",
+        "build_excel",
+        "make_excel",
+        "export_excel",
+    ]
+
+    last_error = None
+
+    for name in candidate_names:
+        fn = getattr(hsd_excel, name, None)
+
+        if callable(fn):
+            for args in [
+                (parsed_data, str(output_path)),
+                (parsed_data, saved_files, str(output_path)),
+                (parsed_data,),
+            ]:
+                try:
+                    result = fn(*args)
+
+                    if isinstance(result, bytes):
+                        return result
+
+                    if isinstance(result, (str, Path)) and Path(result).exists():
+                        return Path(result).read_bytes()
+
+                    if output_path.exists():
+                        return output_path.read_bytes()
+
+                except TypeError as e:
+                    last_error = e
+                    continue
+
+    if last_error:
+        raise RuntimeError(f"Excel writer ditemukan, tapi format argumennya tidak cocok: {last_error}")
+
+    raise RuntimeError(
+        "Tidak menemukan function excel writer yang cocok. Tambahkan salah satu: "
+        "write_excel(), create_excel(), generate_excel(), build_excel(), make_excel(), atau export_excel()."
+    )
+
+
+def render_metric(label: str, value: str):
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def do_logout():
+    st.session_state.logged_in = False
+    st.session_state.role = None
+    st.rerun()
+
+
+# =========================
+# LOGIN PAGE
+# =========================
+def login_page():
+    left, middle, right = st.columns([1, 1.1, 1])
+
+    with middle:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+
+        st.markdown(
+            """
+            <div class="hsd-card">
+                <div style="font-size:42px; text-align:center;">🧄</div>
+                <div style="font-size:32px; font-weight:900; text-align:center; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
+                <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px;">Operational System</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.form("login_form"):
+            pin = st.text_input("Masukkan PIN", type="password", placeholder="PIN divisi")
+            login = st.form_submit_button("Masuk")
+
+        if login:
+            if pin in ROLES:
+                st.session_state.logged_in = True
+                st.session_state.role = ROLES[pin]
+
+                if ROLES[pin] == "Manager/BOD":
+                    st.session_state.selected_menu = "Gudang"
+                else:
+                    st.session_state.selected_menu = ROLES[pin]
+
+                st.rerun()
+
             else:
-                full_sku=sku_p
-            full_sku=fix_sku(full_sku)
-            variasi_c='' if variasi.upper()=='DEFAULT' else variasi
-            items.append({'nama_produk':nama,'sku':full_sku,'variasi':variasi_c,'qty':qty})
-            i=j
-        else: i+=1
-    return items
+                st.error("PIN salah. Coba lagi.")
 
-def parse_page(text):
-    platform,courier,layanan=detect(text)
-    resi=get_resi(text)
-    if not resi: return []
-    penerima=get_penerima(text)
-    pesanan=get_pesanan(text)
+        st.caption("PIN Gudang: 1234 | Konten: 2345 | Live: 3456 | Manager/BOD: 0000")
 
-    # SiCepat bisa pakai format Shopee (# Nama Produk) ATAU TikTok (Product Name)
-    has_shopee_table='# Nama Produk' in text and 'Variasi' in text
-    has_tiktok_table='Product Name' in text and 'Seller SKU' in text
 
-    if has_shopee_table:
-        alamat=get_alamat_shopee(text)
-        products=parse_shopee_products(text)
-    elif has_tiktok_table:
-        alamat=get_alamat_tiktok(text)
-        products=parse_tiktok_products(text)
+# =========================
+# SIDEBAR
+# =========================
+def render_sidebar():
+    with st.sidebar:
+        st.markdown("# 🧄 HSD AGENT")
+        st.caption("Operational System")
+        st.markdown("---")
+
+        role = st.session_state.role or "-"
+        st.markdown(f"**Role aktif:** {role}")
+        st.caption(now_wib().strftime("%A, %d %B %Y • %H:%M WIB"))
+        st.markdown("---")
+
+        if role == "Manager/BOD":
+            available_menu = DIVISIONS
+        else:
+            available_menu = [role] if role in DIVISIONS else ["Gudang"]
+
+        default_index = 0
+        if st.session_state.selected_menu in available_menu:
+            default_index = available_menu.index(st.session_state.selected_menu)
+
+        selected = st.radio(
+            "Menu Divisi",
+            available_menu,
+            index=default_index,
+        )
+
+        st.session_state.selected_menu = selected
+
+        st.markdown("---")
+
+        if st.button("Keluar"):
+            do_logout()
+
+
+# =========================
+# PAGE COMPONENTS
+# =========================
+def page_header(title: str, subtitle: str):
+    top_left, top_right = st.columns([3, 1])
+
+    with top_left:
+        st.markdown(f"<div class='hsd-title'>{title}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='hsd-subtitle'>{subtitle}</div>", unsafe_allow_html=True)
+
+    with top_right:
+        st.markdown(
+            f"""
+            <div class="hsd-card" style="padding:16px; text-align:right;">
+                <div class="small-muted">Waktu sekarang</div>
+                <div style="font-weight:900; font-size:20px; color:#111827;">{now_wib().strftime('%H:%M')}</div>
+                <div class="small-muted">WIB</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+# =========================
+# GUDANG PAGE
+# =========================
+def gudang_page():
+    page_header(
+        "Gudang",
+        "Upload PDF resi HSD/HSS, proses otomatis, lalu download Excel rekap.",
+    )
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        render_metric("Limit Upload", "2GB")
+
+    with c2:
+        render_metric("Format", "PDF → Excel")
+
+    with c3:
+        render_metric("Zona Waktu", "WIB")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.markdown(
+        """
+        <div class="hsd-card">
+            <span class="hsd-pill pill-blue">HSD</span>
+            <span class="hsd-pill pill-orange">HSS</span>
+            <span class="hsd-pill pill-dark">Gudang</span>
+            <div style="font-size:20px; font-weight:850; color:#111827; margin-top:12px;">Upload PDF Resi</div>
+            <div class="small-muted">Upload sesuai brand dan shift. Bisa upload lebih dari satu file di setiap bagian.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    upload_map = {}
+
+    hsd_col, hss_col = st.columns(2)
+
+    with hsd_col:
+        st.markdown("### HSD")
+
+        for label, brand, shift in UPLOAD_GROUPS[:3]:
+            files = st.file_uploader(
+                label,
+                type=["pdf"],
+                accept_multiple_files=True,
+                key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
+            )
+
+            upload_map[label] = {
+                "brand": brand,
+                "shift": shift,
+                "files": files,
+            }
+
+    with hss_col:
+        st.markdown("### HSS")
+
+        for label, brand, shift in UPLOAD_GROUPS[3:]:
+            files = st.file_uploader(
+                label,
+                type=["pdf"],
+                accept_multiple_files=True,
+                key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
+            )
+
+            upload_map[label] = {
+                "brand": brand,
+                "shift": shift,
+                "files": files,
+            }
+
+    total_files = sum(len(payload["files"] or []) for payload in upload_map.values())
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.info(f"Total file terupload: {total_files} PDF")
+
+    reset_col, process_col = st.columns([1, 2])
+
+    with reset_col:
+        reset_upload = st.button("Reset PDF / Ganti File Baru")
+
+    with process_col:
+        process = st.button("Proses PDF → Excel")
+
+    if reset_upload:
+        st.session_state.upload_reset_counter += 1
+        st.success("Upload sudah dikosongkan. Silakan masukkan PDF baru.")
+        st.rerun()
+
+    if process:
+        if total_files == 0:
+            st.warning("Upload minimal 1 file PDF dulu.")
+            return
+
+        try:
+            with st.status("Memproses PDF...", expanded=True) as status:
+                st.write("Menyimpan file sementara...")
+                saved_files = save_uploaded_files(upload_map)
+
+                st.write("Membaca resi dari PDF...")
+                parsed_data = call_parser(saved_files)
+
+                parsed_count = len(parsed_data) if hasattr(parsed_data, "__len__") else "-"
+                st.write(f"Data terbaca: {parsed_count} baris/resi")
+
+                st.write("Membuat Excel...")
+                excel_bytes = call_excel_writer(parsed_data, saved_files)
+
+                status.update(label="Selesai", state="complete", expanded=False)
+
+            filename = f"Rekap_Resi_HSD_{now_wib().strftime('%Y%m%d_%H%M')}_WIB.xlsx"
+
+            st.success("Excel berhasil dibuat.")
+
+            st.download_button(
+                label="Download Excel Rekap",
+                data=excel_bytes,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+        except Exception as e:
+            st.error("Proses gagal.")
+            st.exception(e)
+            st.caption(
+                "Kalau error terjadi di bagian parser/excel_writer, kirim isi error-nya atau file parser.py dan excel_writer.py supaya bisa disesuaikan."
+            )
+
+
+# =========================
+# KONTEN PAGE
+# =========================
+def konten_page():
+    page_header("Konten", "Area kerja divisi konten HSD.")
+
+    st.markdown(
+        """
+        <div class="hsd-card">
+            <div style="font-size:20px; font-weight:850; color:#111827;">Coming Soon</div>
+            <div class="small-muted">Nanti bagian ini bisa diisi kalender konten, ide script, approval, dan database asset.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =========================
+# LIVE PAGE
+# =========================
+def live_page():
+    page_header("Live", "Area kerja divisi live HSD.")
+
+    st.markdown(
+        """
+        <div class="hsd-card">
+            <div style="font-size:20px; font-weight:850; color:#111827;">Coming Soon</div>
+            <div class="small-muted">Nanti bagian ini bisa diisi jadwal live, target GMV, host, produk, dan evaluasi performa.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =========================
+# MAIN ROUTER
+# =========================
+def main():
+    if not st.session_state.logged_in:
+        login_page()
+        return
+
+    render_sidebar()
+
+    selected_menu = st.session_state.selected_menu
+
+    if selected_menu == "Gudang":
+        gudang_page()
+    elif selected_menu == "Konten":
+        konten_page()
+    elif selected_menu == "Live":
+        live_page()
     else:
-        alamat=get_alamat_shopee(text) if courier in ['Wahana','Shopee Express'] else get_alamat_tiktok(text)
-        products=[]
+        gudang_page()
 
-    if not products:
-        products=[{'nama_produk':'(cek manual)','sku':'(cek manual)','variasi':'','qty':1}]
 
-    return [{'platform':platform,'courier':courier,'layanan':layanan,
-             'no_resi':resi,
-             'nama_produk': normalize_product(p['sku'], p['nama_produk']),
-             'nama_produk_asli': p['nama_produk'],
-             'sku':p['sku'],'variasi':p['variasi'],
-             'qty':p['qty'],'no_pesanan':pesanan,
-             'nama_penerima':penerima,'alamat':alamat} for p in products]
-
-def process_pdf(pdf_path, progress_callback=None):
-    all_rows,errors,seen=[],[],{}
-    with pdfplumber.open(pdf_path) as pdf:
-        total=len(pdf.pages)
-        for i,page in enumerate(pdf.pages):
-            try:
-                text=page.extract_text() or ''
-                for r in parse_page(text):
-                    k=r['no_resi']+'_'+(r['sku'] or str(r['qty']))
-                    if k not in seen: seen[k]=True; all_rows.append(r)
-            except Exception as e: errors.append(f"Hal {i+1}: {e}")
-            if progress_callback: progress_callback(i+1,total)
-    return all_rows,errors
+if __name__ == "__main__":
+    main()
