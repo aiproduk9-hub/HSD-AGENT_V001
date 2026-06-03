@@ -254,7 +254,9 @@ if "role" not in st.session_state:
 
 if "selected_menu" not in st.session_state:
     st.session_state.selected_menu = "Gudang"
-
+    
+if "upload_reset_counter" not in st.session_state:
+    st.session_state.upload_reset_counter = 0
 
 # =========================
 # HELPERS
