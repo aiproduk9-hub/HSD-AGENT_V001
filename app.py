@@ -299,56 +299,49 @@ def call_parser(saved_files: list[dict]):
     if hsd_parser is None:
         raise RuntimeError("File parser.py belum terbaca / error import. Pastikan parser.py ada di repo.")
 
-    candidate_names = [
-        "parse_uploaded_files",
-        "parse_files",
-        "parse_pdf_files",
-        "parse_all_pdfs",
-        "process_pdfs",
-    ]
+    all_rows = []
+    all_errors = []
 
-    for name in candidate_names:
-        fn = getattr(hsd_parser, name, None)
+    # parser.py lu punya function: process_pdf(pdf_path, progress_callback=None)
+    if hasattr(hsd_parser, "process_pdf") and callable(hsd_parser.process_pdf):
+        for item in saved_files:
+            result = hsd_parser.process_pdf(item["path"])
 
-        if callable(fn):
-            try:
-                return fn(saved_files)
-            except TypeError:
-                return fn([item["path"] for item in saved_files])
-
-    single_candidates = ["parse_pdf", "extract_resi", "read_pdf"]
-
-    for name in single_candidates:
-        fn = getattr(hsd_parser, name, None)
-
-        if callable(fn):
             rows = []
+            errors = []
 
-            for item in saved_files:
-                result = fn(item["path"])
+            if isinstance(result, tuple):
+                rows = result[0] if len(result) > 0 else []
+                errors = result[1] if len(result) > 1 else []
+            elif isinstance(result, list):
+                rows = result
+            elif isinstance(result, dict):
+                rows = [result]
 
-                if isinstance(result, list):
-                    for row in result:
-                        if isinstance(row, dict):
-                            row.setdefault("brand", item["brand"])
-                            row.setdefault("shift", item["shift"])
-                            row.setdefault("source_file", item["filename"])
-                        rows.append(row)
+            for row in rows:
+                if isinstance(row, dict):
+                    row.setdefault("brand", item["brand"])
+                    row.setdefault("shift", item["shift"])
+                    row.setdefault("source_file", item["filename"])
+                    row.setdefault("group", item["group"])
 
-                elif isinstance(result, dict):
-                    result.setdefault("brand", item["brand"])
-                    result.setdefault("shift", item["shift"])
-                    result.setdefault("source_file", item["filename"])
-                    rows.append(result)
+                all_rows.append(row)
 
-            return rows
+            if errors:
+                for err in errors:
+                    all_errors.append(f"{item['filename']} - {err}")
+
+        if all_errors:
+            st.warning(f"Ada {len(all_errors)} catatan error saat baca PDF, tapi data yang berhasil tetap diproses.")
+            with st.expander("Lihat catatan error PDF"):
+                for err in all_errors[:100]:
+                    st.write(err)
+
+        return all_rows
 
     raise RuntimeError(
-        "Tidak menemukan function parser yang cocok. Tambahkan salah satu: "
-        "parse_uploaded_files(), parse_files(), parse_pdf_files(), parse_all_pdfs(), "
-        "process_pdfs(), atau parse_pdf()."
+        "Tidak menemukan function process_pdf() di parser.py. Pastikan parser.py sudah benar."
     )
-
 
 def call_excel_writer(parsed_data, saved_files: list[dict]) -> bytes:
     if hsd_excel is None:
