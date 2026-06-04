@@ -253,6 +253,29 @@ st.markdown(
         color:#166534;
         margin-top:12px;
     }
+
+/* TOMBOL UTAMA PROSES - ORANGE CERAH */
+button[kind="primary"] {
+    background: linear-gradient(135deg, #F97316, #FDBA24) !important;
+    color: #FFFFFF !important;
+    border: 2px solid #FFEDD5 !important;
+    border-radius: 16px !important;
+    font-weight: 900 !important;
+    font-size: 16px !important;
+    box-shadow: 0 10px 24px rgba(249, 115, 22, 0.35) !important;
+}
+
+button[kind="primary"] * {
+    color: #FFFFFF !important;
+    font-weight: 900 !important;
+}
+
+button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #EA580C, #F59E0B) !important;
+    color: #FFFFFF !important;
+    transform: translateY(-1px);
+}
+    
     </style>
     """,
     unsafe_allow_html=True,
@@ -615,10 +638,12 @@ def gudang_page():
         reset_upload = st.button("🔄 Reset PDF / Ganti File Baru")
 
     with process_col:
-        process = st.button(
-            "🚀 Proses PDF Jadi Excel",
-            disabled=(total_files == 0),
-            help="Upload PDF dulu agar tombol bisa dipakai."
+     process = st.button(
+    "🚀 PROSES PDF JADI EXCEL",
+    disabled=(total_files == 0),
+    help="Upload PDF dulu agar tombol bisa dipakai.",
+    type="primary",
+)
         )
 
     if reset_upload:
