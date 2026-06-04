@@ -637,13 +637,18 @@ def gudang_page():
     with reset_col:
         reset_upload = st.button("🔄 Reset PDF / Ganti File Baru")
 
+        reset_col, process_col = st.columns([1, 2])
+
+    with reset_col:
+        reset_upload = st.button("🔄 Reset PDF / Ganti File Baru")
+
     with process_col:
-     process = st.button(
-    "🚀 PROSES PDF JADI EXCEL",
-    disabled=(total_files == 0),
-    help="Upload PDF dulu agar tombol bisa dipakai.",
-    type="primary",
-)
+        process = st.button(
+            "🚀 PROSES PDF JADI EXCEL",
+            disabled=(total_files == 0),
+            help="Upload PDF dulu agar tombol bisa dipakai.",
+            type="primary",
+        )
         )
 
     if reset_upload:
