@@ -5,33 +5,33 @@ from datetime import datetime
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.utils.exceptions import IllegalCharacterError
 
 
 # =========================================================
-# STYLE DASAR
+# STYLE
 # =========================================================
 
-HDR_FILL = PatternFill("solid", fgColor="1B1F2E")
-HDR_FONT = Font(bold=True, color="FFFFFF", size=10)
-
+DARK = PatternFill("solid", fgColor="111827")
+HEADER = PatternFill("solid", fgColor="1B1F2E")
 WHITE = PatternFill("solid", fgColor="FFFFFF")
 CREAM = PatternFill("solid", fgColor="FFF7E8")
 GREY = PatternFill("solid", fgColor="F3F4F6")
-DARK = PatternFill("solid", fgColor="111827")
-
 BLUE = PatternFill("solid", fgColor="D6EAFF")
 BLUE_DARK = PatternFill("solid", fgColor="2563EB")
-
 ORANGE = PatternFill("solid", fgColor="FFE4CC")
 ORANGE_DARK = PatternFill("solid", fgColor="F97316")
-
 GREEN = PatternFill("solid", fgColor="EAF3DE")
 GREEN_DARK = PatternFill("solid", fgColor="16A34A")
-
 YELLOW = PatternFill("solid", fgColor="FFF9C4")
 RED_LIGHT = PatternFill("solid", fgColor="FFEBEE")
+RED_DARK = PatternFill("solid", fgColor="DC2626")
 PURPLE = PatternFill("solid", fgColor="EDE9FE")
+
+FONT_HEADER = Font(bold=True, color="FFFFFF", size=10)
+FONT_NORMAL = Font(bold=True, color="111827", size=10)
+FONT_SMALL = Font(bold=True, color="111827", size=9)
+FONT_TITLE = Font(bold=True, color="FFFFFF", size=16)
+FONT_BIG = Font(bold=True, color="111827", size=22)
 
 CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
 LEFT = Alignment(horizontal="left", vertical="center", wrap_text=True)
@@ -46,7 +46,7 @@ BORDER = Border(
 
 
 # =========================================================
-# HELPER DASAR
+# BASIC HELPER
 # =========================================================
 
 def safe(r, key, default=""):
@@ -64,7 +64,9 @@ def clean(v):
         return ""
     v = str(v)
     v = re.sub(r"[\x00-\x08\x0B-\x0C\x0E-\x1F]", "", v)
-    return " ".join(v.replace("\uFFFE", " ").split()).strip().rstrip(",")
+    v = v.replace("\uFFFE", " ")
+    v = " ".join(v.split())
+    return v.strip().rstrip(",")
 
 
 def to_int(v):
@@ -75,12 +77,6 @@ def to_int(v):
 
 
 def normalize_token(v):
-    """
-    Biar SKU yang kepisah spasi / beda penulisan tetap kebaca.
-    Contoh:
-    BG-220GR-1- BOTOL-BG-SKU -> BG-220GR-1-BOTOL-BG-SKU
-    BG-100GR-1 BOTOL-BH-SKU -> BG-100GR-1-BOTOL-BH-SKU
-    """
     v = clean(v).upper()
     v = v.replace("_", "-")
     v = re.sub(r"\s+", "-", v)
@@ -89,32 +85,94 @@ def normalize_token(v):
     return v
 
 
+def set_col_widths(ws, widths):
+    for col, width in widths.items():
+        ws.column_dimensions[col].width = width
+
+
+def set_sheet_view(ws):
+    ws.sheet_view.showGridLines = False
+
+
 def set_header(ws, headers, row=1):
     for col, item in enumerate(headers, 1):
         title, width = item
-
         cell = ws.cell(row=row, column=col, value=title)
-        cell.fill = HDR_FILL
-        cell.font = HDR_FONT
+        cell.fill = HEADER
+        cell.font = FONT_HEADER
         cell.alignment = CENTER
         cell.border = BORDER
-
         ws.column_dimensions[get_column_letter(col)].width = width
 
+    ws.row_dimensions[row].height = 30
     ws.freeze_panes = f"A{row + 1}"
-    ws.row_dimensions[row].height = 28
+    ws.auto_filter.ref = f"A{row}:{get_column_letter(len(headers))}{row}"
 
 
-def write_row(ws, row, values, fill=WHITE, bold_cols=None, center_cols=None):
-    bold_cols = bold_cols or []
+def write_row(ws, row, values, fill=WHITE, center_cols=None, bold_cols=None):
     center_cols = center_cols or []
+    bold_cols = bold_cols or []
 
     for col, value in enumerate(values, 1):
         cell = ws.cell(row=row, column=col, value=value)
         cell.fill = fill
         cell.border = BORDER
+        cell.font = Font(bold=True, size=10, color="111827")
         cell.alignment = CENTER if col in center_cols else LEFT
-        cell.font = Font(size=10, bold=col in bold_cols)
+
+
+def title_bar(ws, cell_range, title, fill=DARK):
+    ws.merge_cells(cell_range)
+    cell = ws[cell_range.split(":")[0]]
+    cell.value = title
+    cell.fill = fill
+    cell.font = FONT_TITLE
+    cell.alignment = CENTER
+    cell.border = BORDER
+
+    min_cell, max_cell = cell_range.split(":")
+    start_col = ws[min_cell].column
+    end_col = ws[max_cell].column
+    row = ws[min_cell].row
+
+    for col in range(start_col, end_col + 1):
+        ws.cell(row=row, column=col).fill = fill
+        ws.cell(row=row, column=col).border = BORDER
+
+
+def box_metric(ws, start_row, start_col, label, value, fill):
+    ws.merge_cells(
+        start_row=start_row,
+        start_column=start_col,
+        end_row=start_row,
+        end_column=start_col + 1,
+    )
+    ws.merge_cells(
+        start_row=start_row + 1,
+        start_column=start_col,
+        end_row=start_row + 1,
+        end_column=start_col + 1,
+    )
+
+    c1 = ws.cell(row=start_row, column=start_col, value=label)
+    c1.fill = fill
+    c1.font = Font(bold=True, color="FFFFFF", size=10)
+    c1.alignment = CENTER
+    c1.border = BORDER
+
+    c2 = ws.cell(row=start_row + 1, column=start_col, value=value)
+    c2.fill = WHITE
+    c2.font = FONT_BIG
+    c2.alignment = CENTER
+    c2.border = BORDER
+
+    for r in [start_row, start_row + 1]:
+        for c in [start_col, start_col + 1]:
+            ws.cell(row=r, column=c).border = BORDER
+            if r == start_row:
+                ws.cell(row=r, column=c).fill = fill
+            else:
+                ws.cell(row=r, column=c).fill = WHITE
 
 
 def add_total_row(ws, row, values):
@@ -126,9 +184,16 @@ def add_total_row(ws, row, values):
         cell.border = BORDER
 
 
+# =========================================================
+# FIELD HELPER
+# =========================================================
+
 def get_akun(r):
     akun = clean(safe(r, "akun")) or clean(safe(r, "brand"))
-    return akun.upper() if akun else "-"
+    akun = akun.upper()
+    if akun in ["HSD", "HSS"]:
+        return akun
+    return akun or "-"
 
 
 def get_waktu(r):
@@ -138,41 +203,37 @@ def get_waktu(r):
 
 def get_platform(r):
     platform = clean(safe(r, "platform"))
-    if not platform:
-        return "-"
     p = platform.upper()
-    if "TIKTOK" in p:
-        return "TikTok"
+
     if "SHOPEE" in p:
         return "Shopee"
+    if "TIKTOK" in p:
+        return "TikTok"
+    if "TOKOPEDIA" in p:
+        return "Tokopedia/TikTok"
     if "LAZADA" in p:
         return "Lazada"
     if "BLIBLI" in p:
         return "Blibli"
-    if "TOKOPEDIA" in p:
-        return "Tokopedia/TikTok"
-    return platform
+
+    return platform or "-"
 
 
 def get_pembayaran(r):
-    raw = " ".join(
-        [
-            clean(safe(r, "pembayaran")),
-            clean(safe(r, "payment")),
-            clean(safe(r, "cod")),
-            clean(safe(r, "layanan")),
-            clean(safe(r, "courier")),
-            clean(safe(r, "catatan")),
-        ]
-    ).upper()
-
-    if "COD" in raw:
-        return "COD"
+    raw = " ".join([
+        clean(safe(r, "pembayaran")),
+        clean(safe(r, "payment")),
+        clean(safe(r, "cod")),
+        clean(safe(r, "layanan")),
+        clean(safe(r, "courier")),
+        clean(safe(r, "catatan")),
+    ]).upper()
 
     if "NON-COD" in raw or "NON COD" in raw:
         return "Non-COD"
+    if "COD" in raw:
+        return "COD"
 
-    # Kalau parser belum kasih data pembayaran, jangan ditebak terlalu agresif.
     return "Belum Terbaca"
 
 
@@ -180,20 +241,22 @@ def get_kode_pengambilan(r):
     return clean(safe(r, "kode_pengambilan")) or clean(safe(r, "kode"))
 
 
-def account_platform_label(akun, platform):
+def platform_akun_label(akun, platform):
     akun = clean(akun).upper()
     platform = clean(platform)
-
     p = platform.upper()
 
-    if "TIKTOK" in p:
-        return f"TIKTOK {akun}" if akun and akun != "-" else "TIKTOK"
-    if "TOKOPEDIA" in p:
-        return f"TIKTOK {akun}" if akun and akun != "-" else "TOKOPEDIA/TIKTOK"
+    if "TIKTOK" in p or "TOKOPEDIA" in p:
+        if akun and akun != "-":
+            return f"TIKTOK {akun}"
+        return "TIKTOK"
+
     if "SHOPEE" in p:
         return "SHOPEE"
+
     if "LAZADA" in p:
         return "LAZADA"
+
     if "BLIBLI" in p:
         return "BLIBLI"
 
@@ -216,20 +279,14 @@ def comp(item, qty, ringkasan=True, packing=True):
     }
 
 
-def exact_master_components():
-    """
-    MASTER SKU resmi tahap pertama.
-    Sumber: info internal HSD dari user/Mbak Fitri.
-    """
+def build_master_sku():
     m = {}
 
     def add(keys, components):
         for k in keys:
             m[normalize_token(k)] = components
 
-    # -------------------------
     # MADU
-    # -------------------------
     add(["BGH-MULTI-FLORAL-1-BOTOL"], [
         comp("Madu Multi Floral", 1),
     ])
@@ -238,9 +295,7 @@ def exact_master_components():
         comp("Madu Bunga Kurma", 1),
     ])
 
-    # -------------------------
-    # DRINK ORIGINAL 1 BOTOL
-    # -------------------------
+    # DRINK ORIGINAL
     add([
         "BG-DRINK-ORI-1-BOTOL-PROMO",
         "BG-DRINK-PROMO-1-BTL-ORI",
@@ -253,7 +308,6 @@ def exact_master_components():
         comp("BG Drink Original", 1),
     ])
 
-    # DRINK ORIGINAL 2 BOTOL
     add([
         "BG-DRINK-ORI-2-BOTOL-PROMO",
         "BG-DRINK-PROMO-2-BTL-ORI",
@@ -261,14 +315,10 @@ def exact_master_components():
         comp("BG Drink Original", 2),
     ])
 
-    # DRINK ORIGINAL 4 BOTOL
-    add([
-        "BG-DRINK-PROMO-4-BTL-ORI",
-    ], [
+    add(["BG-DRINK-PROMO-4-BTL-ORI"], [
         comp("BG Drink Original", 4),
     ])
 
-    # DRINK ORIGINAL 7 BOTOL
     add([
         "BG-Drink-Original-7-Botol",
         "BG-DRINK-ORIGINAL-7-BOTOL",
@@ -276,9 +326,7 @@ def exact_master_components():
         comp("BG Drink Original", 7),
     ])
 
-    # -------------------------
     # DRINK PEACH
-    # -------------------------
     add([
         "BG-Drink-Peach",
         "BG-Drink-Peach-FS",
@@ -296,9 +344,7 @@ def exact_master_components():
         comp("BG Drink Peach", 7),
     ])
 
-    # -------------------------
-    # DRINK MIX 7 BOTOL
-    # -------------------------
+    # DRINK MIX
     add([
         "BG-Drink-Mix-7-Botol",
         "BG-DRINK-MIX-7-BOTOL",
@@ -307,9 +353,7 @@ def exact_master_components():
         comp("BG Drink Original", 3),
     ])
 
-    # -------------------------
-    # BOX HAMPERS
-    # -------------------------
+    # BOX
     add(["BOX-HAMPERS-IMLEK"], [
         comp("Box Hampers Imlek", 1, ringkasan=False),
     ])
@@ -326,9 +370,7 @@ def exact_master_components():
         comp("Box Hampers Lebaran", 1, ringkasan=False),
     ])
 
-    # -------------------------
     # HAMPERS 220GR 2 BOTOL + BOX
-    # -------------------------
     add(["BG-220GR-2-BOTOL-HAMPERS-IMLEK"], [
         comp("Black Garlic 220gr", 2),
         comp("Box Hampers Imlek", 1, ringkasan=False),
@@ -349,9 +391,7 @@ def exact_master_components():
         comp("Box Hampers HSD", 1, ringkasan=False),
     ])
 
-    # -------------------------
-    # 3 IN 1 + GOODIE BAG
-    # -------------------------
+    # 3 IN 1
     add([
         "BG-3IN1",
         "Black Garlic Tunggal 3 in 1 + Goodie Bag HSD",
@@ -362,10 +402,7 @@ def exact_master_components():
         comp("Goodie Bag HSD", 1, ringkasan=False),
     ])
 
-    # -------------------------
-    # BG 84GR
-    # Catatan: sesuai info internal, BLACKGARLIC-HONAN-HSD-84G-3PCS dihitung 1 botol 84gr.
-    # -------------------------
+    # BG 84
     add([
         "BLACKGARLIC-HONAN-HSD-84G-3PCS",
         "BG-84GR-CLOVER",
@@ -374,9 +411,7 @@ def exact_master_components():
         comp("Black Garlic 84gr", 1),
     ])
 
-    # -------------------------
-    # BG 100GR SATUAN DAN PAKET 1-5 BOTOL
-    # -------------------------
+    # BG 100GR 1 BOTOL
     add([
         "BG-100GR-1-BOTOL",
         "BG-100GR-1-BOTOL-3CM",
@@ -392,43 +427,26 @@ def exact_master_components():
         comp("Black Garlic 100gr", 1),
     ])
 
-    add([
-        "BG-100GR-2-BOTOL",
-        "BG-100GR-2-BOTOL-3CM",
-    ], [
+    # BG 100GR PAKET 2-5
+    add(["BG-100GR-2-BOTOL", "BG-100GR-2-BOTOL-3CM"], [
         comp("Black Garlic 100gr", 2),
     ])
-
-    add([
-        "BG-100GR-3-BOTOL",
-        "BG-100GR-3-BOTOL-3CM",
-    ], [
+    add(["BG-100GR-3-BOTOL", "BG-100GR-3-BOTOL-3CM"], [
         comp("Black Garlic 100gr", 3),
     ])
-
-    add([
-        "BG-100GR-4-BOTOL",
-        "BG-100GR-4-BOTOL-3CM",
-    ], [
+    add(["BG-100GR-4-BOTOL", "BG-100GR-4-BOTOL-3CM"], [
         comp("Black Garlic 100gr", 4),
     ])
-
-    add([
-        "BG-100GR-5-BOTOL",
-        "BG-100GR-5-BOTOL-3CM",
-    ], [
+    add(["BG-100GR-5-BOTOL", "BG-100GR-5-BOTOL-3CM"], [
         comp("Black Garlic 100gr", 5),
     ])
 
-    # -------------------------
-    # BG 220GR SATUAN DAN PAKET 1-5 BOTOL
-    # -------------------------
+    # BG 220GR 1 BOTOL
     add([
         "BG-220GR-1-BOTOL",
         "BG-220GR-1-BOTOL-BG-SKU",
         "BG-220GR-1-BOTOL-BH",
         "BG-220GR-1 BOTOL-BH-SKU",
-        "BG-220GR-SKU",
         "BG-220GR-SKU",
         "BG-220GR-1-BOTOL-V2",
         "BG-220GR-1- BOTOL-BG-SKU",
@@ -439,25 +457,21 @@ def exact_master_components():
         comp("Black Garlic 220gr", 1),
     ])
 
+    # BG 220GR PAKET 2-5
     add(["BG-220GR-2-BOTOL"], [
         comp("Black Garlic 220gr", 2),
     ])
-
     add(["BG-220GR-3-BOTOL"], [
         comp("Black Garlic 220gr", 3),
     ])
-
     add(["BG-220GR-4-BOTOL"], [
         comp("Black Garlic 220gr", 4),
     ])
-
     add(["BG-220GR-5-BOTOL"], [
         comp("Black Garlic 220gr", 5),
     ])
 
-    # -------------------------
-    # BG 500GR SATUAN DAN PAKET 1-5 BOTOL
-    # -------------------------
+    # BG 500GR 1 BOTOL
     add([
         "BG-500GR-1-BOTOL",
         "BG-500GR-1-BOTOL-BH",
@@ -470,18 +484,16 @@ def exact_master_components():
         comp("Black Garlic 500gr", 1),
     ])
 
+    # BG 500GR PAKET 2-5
     add(["BG-500GR-2-BOTOL"], [
         comp("Black Garlic 500gr", 2),
     ])
-
     add(["BG-500GR-3-BOTOL"], [
         comp("Black Garlic 500gr", 3),
     ])
-
     add(["BG-500GR-4-BOTOL"], [
         comp("Black Garlic 500gr", 4),
     ])
-
     add(["BG-500GR-5-BOTOL"], [
         comp("Black Garlic 500gr", 5),
     ])
@@ -489,12 +501,12 @@ def exact_master_components():
     return m
 
 
-MASTER_SKU = exact_master_components()
+MASTER_SKU = build_master_sku()
 
 
 def multiply_components(components, multiplier):
-    result = []
     multiplier = max(0, to_int(multiplier))
+    result = []
 
     for c in components:
         result.append({
@@ -508,13 +520,6 @@ def multiply_components(components, multiplier):
 
 
 def expand_product(row):
-    """
-    Terjemahkan 1 baris produk dari parser menjadi barang nyata untuk gudang.
-    Return:
-    - components: daftar barang real
-    - status: OK / PERLU TINDAKAN
-    - reason: alasan kalau perlu tindakan
-    """
     sku_raw = clean(safe(row, "sku"))
     nama_raw = clean(safe(row, "nama_produk"))
     nama_asli = clean(safe(row, "nama_produk_asli"))
@@ -532,16 +537,16 @@ def expand_product(row):
 
     normalized_candidates = [normalize_token(x) for x in candidates if clean(x)]
 
-    # 1) Cek exact master SKU
+    # 1. Exact match master SKU
     for token in normalized_candidates:
         if token in MASTER_SKU:
             return multiply_components(MASTER_SKU[token], qty), "OK", ""
 
-    # 2) Cek nama paket 3 in 1
     full_text = normalize_token(" ".join(candidates))
     full_readable = " ".join(candidates).upper()
 
-    if "3-IN-1" in full_text or "3IN1" in full_text or ("3 IN 1" in full_readable and "BLACK" in full_readable):
+    # 2. 3 in 1
+    if "3IN1" in full_text or "3-IN-1" in full_text or "3 IN 1" in full_readable:
         components = [
             comp("Black Garlic 100gr", 1),
             comp("Black Garlic 220gr", 1),
@@ -550,7 +555,7 @@ def expand_product(row):
         ]
         return multiply_components(components, qty), "OK", ""
 
-    # 3) Cek drink mix
+    # 3. Drink mix 7 botol
     if "DRINK" in full_text and "MIX" in full_text and "7-BOTOL" in full_text:
         components = [
             comp("BG Drink Peach", 4),
@@ -558,41 +563,40 @@ def expand_product(row):
         ]
         return multiply_components(components, qty), "OK", ""
 
-    # 4) Cek drink original/peach 7 botol
+    # 4. Drink original / peach 7 botol
     if "DRINK" in full_text and "ORIGINAL" in full_text and "7-BOTOL" in full_text:
         return multiply_components([comp("BG Drink Original", 7)], qty), "OK", ""
 
     if "DRINK" in full_text and "PEACH" in full_text and "7-BOTOL" in full_text:
         return multiply_components([comp("BG Drink Peach", 7)], qty), "OK", ""
 
-    # 5) Cek drink satuan berdasarkan kata
+    # 5. Drink satuan
     if "DRINK" in full_text and "PEACH" in full_text:
         return multiply_components([comp("BG Drink Peach", 1)], qty), "OK", ""
 
     if "DRINK" in full_text and ("ORIGINAL" in full_text or "-ORI" in full_text or "ORI-" in full_text):
         return multiply_components([comp("BG Drink Original", 1)], qty), "OK", ""
 
-    # 6) Cek madu
+    # 6. Madu
     if "MULTI" in full_text and ("FLORAL" in full_text or "FLORA" in full_text):
         return multiply_components([comp("Madu Multi Floral", 1)], qty), "OK", ""
 
     if "KURMA" in full_text:
         return multiply_components([comp("Madu Bunga Kurma", 1)], qty), "OK", ""
 
-    # 7) Cek 84gr
+    # 7. 84gr
     if "84GR" in full_text or "84G" in full_text:
         return multiply_components([comp("Black Garlic 84gr", 1)], qty), "OK", ""
 
-    # 8) Cek pola BG ukuran 100/220/500 dan jumlah botol
-    # Contoh: BG-220GR-3-BOTOL
+    # 8. Pola BG ukuran dan jumlah botol
     m = re.search(r"BG-(100|220|500)GR-(\d+)-BOTOL", full_text)
 
     if m:
         size = m.group(1)
-        jumlah_botol = int(m.group(2))
-        return multiply_components([comp(f"Black Garlic {size}gr", jumlah_botol)], qty), "OK", ""
+        jumlah = int(m.group(2))
+        return multiply_components([comp(f"Black Garlic {size}gr", jumlah)], qty), "OK", ""
 
-    # 9) Cek pola ukuran dari SKU/nama produk
+    # 9. Pola ukuran dari nama
     if "100GR" in full_text or "100-GR" in full_text or "100 GR" in full_readable:
         return multiply_components([comp("Black Garlic 100gr", 1)], qty), "OK", ""
 
@@ -602,8 +606,8 @@ def expand_product(row):
     if "500GR" in full_text or "500-GR" in full_text or "500 GR" in full_readable:
         return multiply_components([comp("Black Garlic 500gr", 1)], qty), "OK", ""
 
-    # 10) Kalau tidak dikenal, jangan dibuang.
     unknown_name = nama_raw or nama_asli or sku_raw or "(produk belum terbaca)"
+
     return [
         {
             "item": f"PERLU CEK: {unknown_name}",
@@ -611,7 +615,7 @@ def expand_product(row):
             "ringkasan": False,
             "packing": True,
         }
-    ], "PERLU TINDAKAN", "SKU/Nama produk belum ada di Master SKU"
+    ], "PERLU TINDAKAN", "SKU/Nama produk belum ada di Master SKU HSD"
 
 
 def combine_components(components, packing_only=False, ringkasan_only=False):
@@ -622,11 +626,9 @@ def combine_components(components, packing_only=False, ringkasan_only=False):
             continue
         if ringkasan_only and not c.get("ringkasan", True):
             continue
-
         total[c["item"]] += to_int(c["qty"])
 
     parts = []
-
     for item in sorted(total.keys()):
         qty = total[item]
         if qty:
@@ -636,13 +638,6 @@ def combine_components(components, packing_only=False, ringkasan_only=False):
 
 
 def prepare_data(rows):
-    """
-    Buat data turunan:
-    - expanded_rows
-    - grouped_orders
-    - rekap_barang
-    - perlu_tindakan
-    """
     rows = rows or []
 
     expanded_rows = []
@@ -666,7 +661,6 @@ def prepare_data(rows):
         if status != "OK":
             perlu_tindakan.append(base)
 
-    # Group by resi
     grouped = defaultdict(list)
 
     for r in expanded_rows:
@@ -676,19 +670,18 @@ def prepare_data(rows):
     grouped_orders = []
 
     for no_resi, items in grouped.items():
-        all_components = []
+        first = items[0]
+        components = []
 
         for r in items:
-            all_components.extend(r["_components"])
+            components.extend(r["_components"])
 
-        first = items[0]
-
-        grouped_orders.append({
+        order = {
             "no_resi": no_resi,
             "akun": first["_akun"],
             "waktu": first["_waktu"],
             "platform": first["_platform"],
-            "label": account_platform_label(first["_akun"], first["_platform"]),
+            "label": platform_akun_label(first["_akun"], first["_platform"]),
             "courier": clean(safe(first, "courier")),
             "layanan": clean(safe(first, "layanan")),
             "pembayaran": first["_pembayaran"],
@@ -698,12 +691,14 @@ def prepare_data(rows):
             "alamat": clean(safe(first, "alamat")),
             "source_file": clean(safe(first, "source_file")),
             "items": items,
-            "components": all_components,
-            "produk_packing": combine_components(all_components, packing_only=True),
-            "produk_ringkasan": combine_components(all_components, ringkasan_only=True),
-            "total_item": sum(to_int(c["qty"]) for c in all_components if c.get("packing", True)),
+            "components": components,
+            "produk_packing": combine_components(components, packing_only=True),
+            "produk_ringkasan": combine_components(components, ringkasan_only=True),
+            "total_item": sum(to_int(c["qty"]) for c in components if c.get("packing", True)),
             "status": "PERLU TINDAKAN" if any(i["_status"] != "OK" for i in items) else "OK",
-        })
+        }
+
+        grouped_orders.append(order)
 
     grouped_orders = sorted(
         grouped_orders,
@@ -716,7 +711,6 @@ def prepare_data(rows):
         )
     )
 
-    # Rekap barang
     rekap_barang = defaultdict(int)
     rekap_ringkasan = defaultdict(int)
 
@@ -727,12 +721,31 @@ def prepare_data(rows):
             if c.get("ringkasan", True):
                 rekap_ringkasan[c["item"]] += to_int(c["qty"])
 
+    combo_map = defaultdict(lambda: {
+        "resi": [],
+        "qty": 0,
+        "akun": set(),
+        "platform": set(),
+        "pembayaran": set(),
+        "kurir": set(),
+    })
+
+    for order in grouped_orders:
+        combo = order["produk_packing"] or "(produk belum terbaca)"
+        combo_map[combo]["resi"].append(order["no_resi"])
+        combo_map[combo]["qty"] += order["total_item"]
+        combo_map[combo]["akun"].add(order["akun"])
+        combo_map[combo]["platform"].add(order["platform"])
+        combo_map[combo]["pembayaran"].add(order["pembayaran"])
+        combo_map[combo]["kurir"].add(order["courier"])
+
     return {
         "expanded_rows": expanded_rows,
         "grouped_orders": grouped_orders,
         "rekap_barang": rekap_barang,
         "rekap_ringkasan": rekap_ringkasan,
         "perlu_tindakan": perlu_tindakan,
+        "combo_map": combo_map,
     }
 
 
@@ -744,10 +757,11 @@ def write_ringkasan_operasional(wb, data):
     ws = wb.active
     ws.title = "RINGKASAN OPERASIONAL"
     ws.sheet_tab_color = "F97316"
+    set_sheet_view(ws)
 
     orders = data["grouped_orders"]
     rekap = data["rekap_ringkasan"]
-    perlu_tindakan = data["perlu_tindakan"]
+    perlu = data["perlu_tindakan"]
 
     total_resi = len(orders)
 
@@ -767,137 +781,36 @@ def write_ringkasan_operasional(wb, data):
 
     total_produk = total_bg + total_drink + total_madu
 
-    # Width
-    widths = {
-        "A": 18,
-        "B": 16,
-        "C": 16,
-        "D": 16,
-        "E": 16,
-        "F": 16,
-        "G": 16,
-        "H": 16,
-        "I": 16,
-    }
+    set_col_widths(ws, {
+        "A": 18, "B": 14, "C": 14, "D": 14, "E": 14,
+        "F": 14, "G": 14, "H": 14, "I": 14,
+    })
 
-    for col, width in widths.items():
-        ws.column_dimensions[col].width = width
+    title_bar(ws, "A1:I1", f"RINGKASAN OPERASIONAL HSD - {datetime.now().strftime('%d/%m/%Y')}")
 
-    # Title
-    ws.merge_cells("A1:I1")
-    c = ws["A1"]
-    c.value = f"RINGKASAN OPERASIONAL HSD - {datetime.now().strftime('%d/%m/%Y')}"
-    c.fill = DARK
-    c.font = Font(bold=True, color="FFFFFF", size=16)
-    c.alignment = CENTER
-    c.border = BORDER
-    ws.row_dimensions[1].height = 32
+    status = "SIAP DIGUNAKAN" if len(perlu) == 0 else "PERLU REVIEW ADMIN"
+    status_fill = GREEN_DARK if len(perlu) == 0 else ORANGE_DARK
+    title_bar(ws, "A2:I2", f"Status Proses: {status}", fill=status_fill)
 
-    status_text = "SIAP DIGUNAKAN" if len(perlu_tindakan) == 0 else "PERLU REVIEW ADMIN"
-    status_fill = GREEN_DARK if len(perlu_tindakan) == 0 else ORANGE_DARK
+    box_metric(ws, 4, 1, "TOTAL RESI", total_resi, BLUE_DARK)
+    box_metric(ws, 4, 3, "TOTAL PRODUK", total_produk, ORANGE_DARK)
+    box_metric(ws, 4, 5, "TOTAL BG", total_bg, GREEN_DARK)
+    box_metric(ws, 4, 7, "TOTAL DRINK", total_drink, BLUE_DARK)
 
-    ws.merge_cells("A2:I2")
-    c = ws["A2"]
-    c.value = f"Status Proses: {status_text}"
-    c.fill = status_fill
-    c.font = Font(bold=True, color="FFFFFF", size=11)
-    c.alignment = CENTER
-    c.border = BORDER
+    box_metric(ws, 7, 1, "BG 100", bg100, GREEN_DARK)
+    box_metric(ws, 7, 3, "BG 220", bg220, GREEN_DARK)
+    box_metric(ws, 7, 5, "BG 500", bg500, GREEN_DARK)
+    box_metric(ws, 7, 7, "BG 84", bg84, GREEN_DARK)
 
-    # Big metrics
-    metrics = [
-        ("TOTAL RESI", total_resi, BLUE_DARK),
-        ("TOTAL PRODUK", total_produk, ORANGE_DARK),
-        ("TOTAL BG", total_bg, GREEN_DARK),
-        ("TOTAL DRINK", total_drink, BLUE_DARK),
-        ("TOTAL MADU", total_madu, ORANGE_DARK),
-    ]
+    box_metric(ws, 10, 1, "DRINK ORIGINAL", drink_ori, BLUE_DARK)
+    box_metric(ws, 10, 3, "DRINK PEACH", drink_peach, BLUE_DARK)
+    box_metric(ws, 10, 5, "TOTAL MADU", total_madu, ORANGE_DARK)
+    box_metric(ws, 10, 7, "PERLU TINDAKAN", len(perlu), RED_DARK if perlu else GREEN_DARK)
 
-    start_col = 1
-    for idx, (label, value, fill) in enumerate(metrics):
-        col = start_col + idx * 2
-        if col + 1 > 9:
-            break
+    box_metric(ws, 13, 1, "MADU KURMA", madu_kurma, ORANGE_DARK)
+    box_metric(ws, 13, 3, "MADU MULTI", madu_multi, ORANGE_DARK)
 
-        ws.merge_cells(start_row=4, start_column=col, end_row=4, end_column=col + 1)
-        ws.merge_cells(start_row=5, start_column=col, end_row=5, end_column=col + 1)
-
-        c1 = ws.cell(row=4, column=col, value=label)
-        c1.fill = fill
-        c1.font = Font(bold=True, color="FFFFFF", size=11)
-        c1.alignment = CENTER
-        c1.border = BORDER
-
-        c2 = ws.cell(row=5, column=col, value=value)
-        c2.fill = WHITE
-        c2.font = Font(bold=True, color="111827", size=24)
-        c2.alignment = CENTER
-        c2.border = BORDER
-
-        # Border for merged partner
-        ws.cell(row=4, column=col + 1).fill = fill
-        ws.cell(row=4, column=col + 1).border = BORDER
-        ws.cell(row=5, column=col + 1).fill = WHITE
-        ws.cell(row=5, column=col + 1).border = BORDER
-
-    ws.row_dimensions[5].height = 42
-
-    # Detail product boxes
-    detail_rows = [
-        ("BLACK GARLIC", [
-            ("BG 100gr", bg100),
-            ("BG 220gr", bg220),
-            ("BG 500gr", bg500),
-            ("BG 84gr", bg84),
-        ], GREEN),
-        ("DRINK", [
-            ("Original", drink_ori),
-            ("Peach", drink_peach),
-        ], BLUE),
-        ("MADU", [
-            ("Bunga Kurma", madu_kurma),
-            ("Multi Floral", madu_multi),
-        ], ORANGE),
-    ]
-
-    row = 8
-    for title, items, fill in detail_rows:
-        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=9)
-        c = ws.cell(row=row, column=1, value=title)
-        c.fill = DARK
-        c.font = Font(bold=True, color="FFFFFF", size=12)
-        c.alignment = CENTER
-        c.border = BORDER
-
-        row += 1
-        col = 1
-
-        for label, value in items:
-            ws.merge_cells(start_row=row, start_column=col, end_row=row, end_column=col + 1)
-            ws.merge_cells(start_row=row + 1, start_column=col, end_row=row + 1, end_column=col + 1)
-
-            c1 = ws.cell(row=row, column=col, value=label)
-            c1.fill = fill
-            c1.font = Font(bold=True, color="111827", size=10)
-            c1.alignment = CENTER
-            c1.border = BORDER
-
-            c2 = ws.cell(row=row + 1, column=col, value=value)
-            c2.fill = WHITE
-            c2.font = Font(bold=True, size=20)
-            c2.alignment = CENTER
-            c2.border = BORDER
-
-            ws.cell(row=row, column=col + 1).fill = fill
-            ws.cell(row=row, column=col + 1).border = BORDER
-            ws.cell(row=row + 1, column=col + 1).fill = WHITE
-            ws.cell(row=row + 1, column=col + 1).border = BORDER
-
-            col += 2
-
-        row += 3
-
-    # Ringkasan by platform/akun
+    # Ringkasan per platform/akun
     by_label = defaultdict(lambda: {
         "resi": set(),
         "qty": 0,
@@ -916,12 +829,11 @@ def write_ringkasan_operasional(wb, data):
         by_label[label]["resi"].add(order["no_resi"])
 
         for c in order["components"]:
-            item = c["item"]
-            qty = to_int(c["qty"])
-
             if not c.get("ringkasan", True):
                 continue
 
+            item = c["item"]
+            qty = to_int(c["qty"])
             by_label[label]["qty"] += qty
 
             if item == "Black Garlic 100gr":
@@ -941,39 +853,44 @@ def write_ringkasan_operasional(wb, data):
             elif item == "Madu Multi Floral":
                 by_label[label]["multi"] += qty
 
-    row += 1
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=9)
-    c = ws.cell(row=row, column=1, value="RINGKASAN PER PLATFORM / AKUN")
-    c.fill = DARK
-    c.font = Font(bold=True, color="FFFFFF", size=12)
-    c.alignment = CENTER
-    c.border = BORDER
+    start = 17
+    title_bar(ws, f"A{start}:I{start}", "RINGKASAN PER PLATFORM / AKUN")
 
-    row += 1
     headers = [
-        ("Platform/Akun", 22),
-        ("Resi", 10),
-        ("Total Qty", 12),
-        ("BG 100", 10),
-        ("BG 220", 10),
-        ("BG 500", 10),
-        ("BG 84", 10),
-        ("Drink Ori", 12),
-        ("Drink Peach", 12),
+        "Platform/Akun",
+        "Resi",
+        "Qty",
+        "BG100",
+        "BG220",
+        "BG500",
+        "BG84",
+        "Ori",
+        "Peach",
     ]
 
-    for col, (h, _) in enumerate(headers, 1):
-        cell = ws.cell(row=row, column=col, value=h)
-        cell.fill = HDR_FILL
-        cell.font = HDR_FONT
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=start + 1, column=col, value=h)
+        cell.fill = HEADER
+        cell.font = FONT_HEADER
         cell.alignment = CENTER
         cell.border = BORDER
 
-    row += 1
+    row = start + 2
 
-    for idx, label in enumerate(sorted(by_label.keys())):
+    preferred = ["TIKTOK HSS", "SHOPEE", "TIKTOK HSD", "LAZADA", "BLIBLI"]
+    labels = []
+
+    for p in preferred:
+        if p in by_label:
+            labels.append(p)
+
+    for k in sorted(by_label.keys()):
+        if k not in labels:
+            labels.append(k)
+
+    for idx, label in enumerate(labels):
         d = by_label[label]
-        fill = BLUE if idx % 2 == 0 else WHITE
+        fill = GREEN if idx % 2 == 0 else ORANGE
 
         values = [
             label,
@@ -987,25 +904,148 @@ def write_ringkasan_operasional(wb, data):
             d["peach"],
         ]
 
-        for col, value in enumerate(values, 1):
-            cell = ws.cell(row=row, column=col, value=value)
-            cell.fill = fill
-            cell.border = BORDER
-            cell.alignment = LEFT if col == 1 else CENTER
-            cell.font = Font(bold=True if col in [2, 3] else False, size=10)
+        write_row(ws, row, values, fill=fill, center_cols=[2, 3, 4, 5, 6, 7, 8, 9])
 
         row += 1
 
-    ws.freeze_panes = "A4"
+    ws.freeze_panes = "A17"
 
 
 # =========================================================
-# SHEET 2: DAFTAR SIAP PACKING
+# SHEET 2: REKAP KEBUTUHAN BARANG
 # =========================================================
 
-def write_daftar_siap_packing(wb, data):
-    ws = wb.create_sheet("DAFTAR SIAP PACKING")
+def write_rekap_kebutuhan_barang(wb, data):
+    ws = wb.create_sheet("REKAP KEBUTUHAN BARANG")
+    ws.sheet_tab_color = "2563EB"
+    set_sheet_view(ws)
+
+    title_bar(ws, "A1:E1", "REKAP KEBUTUHAN BARANG - UNTUK AMBIL STOK GUDANG", BLUE_DARK)
+
+    perlu = len(data["perlu_tindakan"])
+    status = "SIAP DIGUNAKAN" if perlu == 0 else f"PERLU REVIEW ADMIN: {perlu} DATA"
+    fill = GREEN_DARK if perlu == 0 else ORANGE_DARK
+    title_bar(ws, "A2:E2", f"Status Rekap: {status}", fill)
+
+    set_header(ws, [
+        ("No", 6),
+        ("Nama Barang", 36),
+        ("Total Qty", 14),
+        ("Kategori", 24),
+        ("Keterangan", 36),
+    ], row=4)
+
+    main_order = [
+        "Black Garlic 100gr",
+        "Black Garlic 220gr",
+        "Black Garlic 500gr",
+        "Black Garlic 84gr",
+        "BG Drink Original",
+        "BG Drink Peach",
+        "Madu Bunga Kurma",
+        "Madu Multi Floral",
+        "Goodie Bag HSD",
+        "Box Hampers Imlek",
+        "Box Hampers HSD",
+        "Box Hampers Natal",
+        "Box Hampers Lebaran",
+    ]
+
+    rekap = data["rekap_barang"]
+    names = [n for n in main_order if rekap.get(n, 0) > 0]
+
+    for n in sorted(rekap.keys()):
+        if n not in names and rekap.get(n, 0) > 0:
+            names.append(n)
+
+    row = 5
+
+    for idx, name in enumerate(names, 1):
+        qty = rekap.get(name, 0)
+
+        if "Black Garlic" in name:
+            kategori = "Black Garlic"
+        elif "Drink" in name:
+            kategori = "Drink"
+        elif "Madu" in name:
+            kategori = "Madu"
+        elif "Box" in name or "Goodie" in name:
+            kategori = "Perlengkapan Packing"
+        elif "PERLU CEK" in name:
+            kategori = "Perlu Review"
+        else:
+            kategori = "Lainnya"
+
+        note = "Ambil dari stok gudang"
+        if "PERLU CEK" in name:
+            note = "Jangan dijadikan final sebelum dicek"
+
+        fill_row = RED_LIGHT if "PERLU CEK" in name else (GREEN if idx % 2 == 0 else WHITE)
+
+        values = [idx, name, qty, kategori, note]
+        write_row(ws, row, values, fill=fill_row, center_cols=[1, 3], bold_cols=[2, 3])
+        row += 1
+
+    add_total_row(ws, row, ["", "TOTAL", sum(rekap.values()), "", ""])
+
+
+# =========================================================
+# SHEET 3: PANDUAN SIAP PACKING
+# =========================================================
+
+def write_panduan_siap_packing(wb, data):
+    ws = wb.create_sheet("PANDUAN SIAP PACKING")
     ws.sheet_tab_color = "16A34A"
+    set_sheet_view(ws)
+
+    title_bar(ws, "A1:G1", "PANDUAN SIAP PACKING - KELOMPOK PAKET", GREEN_DARK)
+
+    set_header(ws, [
+        ("No", 6),
+        ("Paket yang Harus Disiapkan", 70),
+        ("Jumlah Resi/Paket", 16),
+        ("Total Barang", 14),
+        ("Akun", 18),
+        ("Platform", 22),
+        ("Catatan", 35),
+    ], row=3)
+
+    combo_map = data["combo_map"]
+
+    sorted_combos = sorted(
+        combo_map.items(),
+        key=lambda x: (-len(x[1]["resi"]), x[0])
+    )
+
+    row = 4
+
+    for idx, (combo, d) in enumerate(sorted_combos, 1):
+        is_review = "PERLU CEK" in combo
+        fill = RED_LIGHT if is_review else (GREEN if idx % 2 == 0 else WHITE)
+
+        values = [
+            idx,
+            combo,
+            len(d["resi"]),
+            d["qty"],
+            ", ".join(sorted([x for x in d["akun"] if x])),
+            ", ".join(sorted([x for x in d["platform"] if x])),
+            "Perlu dicek" if is_review else "Siapkan sesuai jumlah paket",
+        ]
+
+        write_row(ws, row, values, fill=fill, center_cols=[1, 3, 4], bold_cols=[2, 3, 4])
+
+        row += 1
+
+
+# =========================================================
+# SHEET 4: DETAIL PACKING RESI
+# =========================================================
+
+def write_detail_packing_resi(wb, data):
+    ws = wb.create_sheet("DETAIL PACKING RESI")
+    ws.sheet_tab_color = "84CC16"
+    set_sheet_view(ws)
 
     set_header(ws, [
         ("No", 6),
@@ -1013,7 +1053,7 @@ def write_daftar_siap_packing(wb, data):
         ("Waktu", 12),
         ("Platform", 16),
         ("No. Resi", 24),
-        ("Produk yang Harus Disiapkan", 65),
+        ("Produk yang Harus Disiapkan", 70),
         ("Total Item", 12),
         ("Kurir", 16),
         ("Layanan", 14),
@@ -1042,100 +1082,20 @@ def write_daftar_siap_packing(wb, data):
             "",
         ]
 
-        write_row(
-            ws,
-            row,
-            values,
-            fill=fill,
-            bold_cols=[6, 7, 11],
-            center_cols=[1, 2, 3, 7, 9, 10, 11, 12],
-        )
-
+        write_row(ws, row, values, fill=fill, center_cols=[1, 2, 3, 7, 9, 10, 11, 12], bold_cols=[6, 7])
         row += 1
 
 
 # =========================================================
-# SHEET 3: REKAP KEBUTUHAN BARANG
-# =========================================================
-
-def write_rekap_kebutuhan_barang(wb, data):
-    ws = wb.create_sheet("REKAP KEBUTUHAN BARANG")
-    ws.sheet_tab_color = "2563EB"
-
-    set_header(ws, [
-        ("No", 6),
-        ("Nama Barang", 36),
-        ("Total Qty", 14),
-        ("Kategori", 22),
-        ("Keterangan", 32),
-    ])
-
-    main_order = [
-        "Black Garlic 100gr",
-        "Black Garlic 220gr",
-        "Black Garlic 500gr",
-        "Black Garlic 84gr",
-        "BG Drink Original",
-        "BG Drink Peach",
-        "Madu Bunga Kurma",
-        "Madu Multi Floral",
-        "Goodie Bag HSD",
-        "Box Hampers Imlek",
-        "Box Hampers HSD",
-        "Box Hampers Natal",
-        "Box Hampers Lebaran",
-    ]
-
-    rekap = data["rekap_barang"]
-    names = [n for n in main_order if rekap.get(n, 0) > 0]
-
-    for n in sorted(rekap.keys()):
-        if n not in names and rekap.get(n, 0) > 0:
-            names.append(n)
-
-    row = 2
-
-    for idx, name in enumerate(names, 1):
-        qty = rekap.get(name, 0)
-
-        if "Black Garlic" in name:
-            kategori = "Black Garlic"
-        elif "Drink" in name:
-            kategori = "Drink"
-        elif "Madu" in name:
-            kategori = "Madu"
-        elif "Box" in name:
-            kategori = "Perlengkapan Packing"
-        elif "Goodie" in name:
-            kategori = "Perlengkapan Packing"
-        else:
-            kategori = "Lainnya"
-
-        fill = GREEN if idx % 2 == 0 else WHITE
-
-        values = [
-            idx,
-            name,
-            qty,
-            kategori,
-            "Ambil dari stok gudang",
-        ]
-
-        write_row(ws, row, values, fill=fill, bold_cols=[2, 3], center_cols=[1, 3])
-
-        row += 1
-
-    total_qty = sum(rekap.values())
-    add_total_row(ws, row, ["", "TOTAL", total_qty, "", ""])
-
-
-# =========================================================
-# SHEET 4: DATA ORDER CUSTOMER
+# SHEET 5: DATA ORDER CUSTOMER
 # =========================================================
 
 def write_data_order_customer(wb, data):
     ws = wb.create_sheet("DATA ORDER CUSTOMER")
     ws.sheet_tab_color = "F97316"
+    set_sheet_view(ws)
+
+    title_bar(ws, "A1:M1", "DATA ORDER CUSTOMER", ORANGE_DARK)
 
     set_header(ws, [
         ("No", 6),
@@ -1143,17 +1103,17 @@ def write_data_order_customer(wb, data):
         ("Waktu", 12),
         ("Platform", 16),
         ("No. Resi", 24),
-        ("No. Pesanan", 22),
-        ("Nama Pembeli", 24),
-        ("Alamat", 55),
-        ("Produk Dibeli", 65),
+        ("No. Pesanan", 24),
+        ("Nama Pembeli", 26),
+        ("Alamat", 60),
+        ("Produk Dibeli", 70),
         ("Total Item", 12),
         ("Pembayaran", 16),
         ("Kurir", 16),
         ("Layanan", 14),
-    ])
+    ], row=3)
 
-    row = 2
+    row = 4
 
     for idx, order in enumerate(data["grouped_orders"], 1):
         fill = BLUE if idx % 2 == 0 else WHITE
@@ -1174,25 +1134,18 @@ def write_data_order_customer(wb, data):
             order["layanan"],
         ]
 
-        write_row(
-            ws,
-            row,
-            values,
-            fill=fill,
-            bold_cols=[9, 10],
-            center_cols=[1, 2, 3, 10, 11, 13],
-        )
-
+        write_row(ws, row, values, fill=fill, center_cols=[1, 2, 3, 10, 11, 13], bold_cols=list(range(1, 14)))
         row += 1
 
 
 # =========================================================
-# SHEET 5: ORDER INSTANT
+# SHEET 6: ORDER INSTANT
 # =========================================================
 
 def write_order_instant(wb, data):
     ws = wb.create_sheet("ORDER INSTANT")
     ws.sheet_tab_color = "F5A623"
+    set_sheet_view(ws)
 
     set_header(ws, [
         ("No", 6),
@@ -1201,17 +1154,18 @@ def write_order_instant(wb, data):
         ("Platform", 16),
         ("No. Resi", 24),
         ("Kode Pengambilan", 22),
-        ("Nama Pembeli", 24),
-        ("Produk", 60),
+        ("Nama Pembeli", 26),
+        ("Produk", 70),
         ("Kurir", 16),
         ("Layanan", 16),
-        ("Catatan", 28),
+        ("Catatan", 35),
     ])
 
     row = 2
+    no = 1
     found = False
 
-    for idx, order in enumerate(data["grouped_orders"], 1):
+    for order in data["grouped_orders"]:
         text = " ".join([
             order["courier"],
             order["layanan"],
@@ -1233,7 +1187,7 @@ def write_order_instant(wb, data):
         found = True
 
         values = [
-            row - 1,
+            no,
             order["akun"],
             order["waktu"],
             order["platform"],
@@ -1246,104 +1200,125 @@ def write_order_instant(wb, data):
             "Butuh perhatian admin" if order["kode_pengambilan"] else "Instant tanpa kode terbaca",
         ]
 
-        write_row(
-            ws,
-            row,
-            values,
-            fill=YELLOW,
-            bold_cols=[6, 8],
-            center_cols=[1, 2, 3, 6, 10],
-        )
-
+        write_row(ws, row, values, fill=YELLOW, center_cols=[1, 2, 3, 6, 10], bold_cols=[6, 8])
         row += 1
+        no += 1
 
     if not found:
         ws.merge_cells("A2:K2")
         cell = ws["A2"]
         cell.value = "Tidak ada order instant / kode pengambilan yang terbaca di batch ini."
-        cell.alignment = LEFT
-        cell.font = Font(italic=True, size=10)
         cell.fill = WHITE
+        cell.font = Font(bold=True, italic=True, size=10)
+        cell.alignment = LEFT
+        cell.border = BORDER
 
 
 # =========================================================
-# SHEET 6: AUDIT DATA
+# SHEET 7: KONTROL VALIDASI PDF
 # =========================================================
 
-def write_audit_data(wb, data):
-    ws = wb.create_sheet("AUDIT DATA")
+def write_kontrol_validasi_pdf(wb, data):
+    ws = wb.create_sheet("KONTROL VALIDASI PDF")
     ws.sheet_tab_color = "6B7280"
+    set_sheet_view(ws)
 
-    set_header(ws, [
-        ("No", 6),
-        ("Akun", 10),
-        ("Waktu", 12),
-        ("Platform", 16),
-        ("Kurir", 16),
-        ("Layanan", 14),
-        ("No. Resi", 24),
-        ("No. Pesanan", 22),
-        ("Nama Produk Parser", 38),
-        ("Nama Produk Asli", 38),
-        ("SKU Parser", 30),
-        ("Variasi", 20),
-        ("Qty Parser", 12),
-        ("Hasil Terjemahan Master SKU", 65),
-        ("Nama Pembeli", 24),
-        ("Alamat", 55),
-        ("Source File", 30),
-        ("Status", 18),
-        ("Catatan", 35),
-    ])
+    title_bar(ws, "A1:G1", "KONTROL VALIDASI PDF", DARK)
 
-    row = 2
+    orders = data["grouped_orders"]
+    expanded = data["expanded_rows"]
+    perlu = data["perlu_tindakan"]
 
-    for idx, r in enumerate(data["expanded_rows"], 1):
-        fill = RED_LIGHT if r["_status"] != "OK" else (GREY if idx % 2 == 0 else WHITE)
+    total_resi = len(orders)
+    total_baris_produk = len(expanded)
+    total_perlu = len(perlu)
 
-        translated = combine_components(r["_components"], packing_only=True)
+    status = "SIAP DIGUNAKAN" if total_perlu == 0 else "PERLU REVIEW ADMIN"
+    fill = GREEN_DARK if total_perlu == 0 else ORANGE_DARK
+
+    title_bar(ws, "A2:G2", f"Status Validasi: {status}", fill)
+
+    headers = [
+        ("Metrik", 35),
+        ("Jumlah", 16),
+        ("Keterangan", 70),
+    ]
+
+    set_header(ws, headers, row=4)
+
+    rows = [
+        ("Total Resi Terbaca", total_resi, "Jumlah resi yang berhasil masuk ke Excel"),
+        ("Total Baris Produk Terbaca", total_baris_produk, "Jumlah baris produk dari parser"),
+        ("Data Perlu Tindakan", total_perlu, "Produk/SKU yang belum dikenali Master SKU"),
+        ("Catatan", "", "Kalau angka manual berbeda jauh, kemungkinan parser belum membaca semua halaman/resi dari PDF."),
+    ]
+
+    row = 5
+    for idx, values in enumerate(rows):
+        fill_row = RED_LIGHT if values[0] == "Data Perlu Tindakan" and total_perlu > 0 else (GREY if idx % 2 == 0 else WHITE)
+        write_row(ws, row, values, fill=fill_row, center_cols=[2], bold_cols=[1, 2])
+        row += 1
+
+    # Summary per source file
+    row += 2
+    title_bar(ws, f"A{row}:G{row}", "RINGKASAN PER FILE / SUMBER PDF", DARK)
+    row += 1
+
+    headers2 = [
+        ("Source File", 40),
+        ("Total Resi", 14),
+        ("Total Baris Produk", 18),
+        ("Perlu Tindakan", 16),
+        ("Catatan", 55),
+    ]
+
+    for col, (h, w) in enumerate(headers2, 1):
+        cell = ws.cell(row=row, column=col, value=h)
+        cell.fill = HEADER
+        cell.font = FONT_HEADER
+        cell.alignment = CENTER
+        cell.border = BORDER
+        ws.column_dimensions[get_column_letter(col)].width = w
+
+    by_file = defaultdict(lambda: {
+        "resi": set(),
+        "rows": 0,
+        "perlu": 0,
+    })
+
+    for r in expanded:
+        file_name = clean(safe(r, "source_file")) or "(tanpa source file)"
+        by_file[file_name]["rows"] += 1
+        by_file[file_name]["resi"].add(clean(safe(r, "no_resi")))
+        if r["_status"] != "OK":
+            by_file[file_name]["perlu"] += 1
+
+    row += 1
+
+    for idx, file_name in enumerate(sorted(by_file.keys()), 1):
+        d = by_file[file_name]
+        fill_row = RED_LIGHT if d["perlu"] > 0 else (GREEN if idx % 2 == 0 else WHITE)
 
         values = [
-            idx,
-            r["_akun"],
-            r["_waktu"],
-            r["_platform"],
-            clean(safe(r, "courier")),
-            clean(safe(r, "layanan")),
-            clean(safe(r, "no_resi")),
-            clean(safe(r, "no_pesanan")),
-            clean(safe(r, "nama_produk")),
-            clean(safe(r, "nama_produk_asli")),
-            clean(safe(r, "sku")),
-            clean(safe(r, "variasi")),
-            to_int(safe(r, "qty", 0)),
-            translated,
-            clean(safe(r, "nama_penerima")),
-            clean(safe(r, "alamat")),
-            clean(safe(r, "source_file")),
-            r["_status"],
-            r["_reason"],
+            file_name,
+            len(d["resi"]),
+            d["rows"],
+            d["perlu"],
+            "Perlu dicek" if d["perlu"] > 0 else "OK",
         ]
 
-        write_row(
-            ws,
-            row,
-            values,
-            fill=fill,
-            bold_cols=[14, 18],
-            center_cols=[1, 2, 3, 6, 13, 18],
-        )
-
+        write_row(ws, row, values, fill=fill_row, center_cols=[2, 3, 4], bold_cols=[1, 2, 3, 4])
         row += 1
 
 
 # =========================================================
-# SHEET 7: PERLU TINDAKAN
+# SHEET 8: PERLU TINDAKAN
 # =========================================================
 
 def write_perlu_tindakan(wb, data):
     ws = wb.create_sheet("PERLU TINDAKAN")
     ws.sheet_tab_color = "DC2626"
+    set_sheet_view(ws)
 
     set_header(ws, [
         ("No", 6),
@@ -1351,12 +1326,12 @@ def write_perlu_tindakan(wb, data):
         ("Waktu", 12),
         ("Platform", 16),
         ("No. Resi", 24),
-        ("Nama Produk", 42),
+        ("Nama Produk", 45),
         ("SKU", 32),
         ("Qty", 10),
-        ("Masalah", 38),
-        ("Saran Tindakan", 45),
-        ("Source File", 30),
+        ("Masalah", 42),
+        ("Saran Tindakan", 50),
+        ("Source File", 32),
     ])
 
     perlu = data["perlu_tindakan"]
@@ -1364,7 +1339,7 @@ def write_perlu_tindakan(wb, data):
     if not perlu:
         ws.merge_cells("A2:K2")
         cell = ws["A2"]
-        cell.value = "Tidak ada data yang perlu tindakan. Semua SKU/produk berhasil diterjemahkan oleh Master SKU."
+        cell.value = "Tidak ada data yang perlu tindakan. Semua SKU/produk berhasil diterjemahkan oleh Master SKU HSD."
         cell.fill = GREEN
         cell.font = Font(bold=True, size=11)
         cell.alignment = LEFT
@@ -1388,15 +1363,49 @@ def write_perlu_tindakan(wb, data):
             clean(safe(r, "source_file")),
         ]
 
-        write_row(
-            ws,
-            row,
-            values,
-            fill=RED_LIGHT,
-            bold_cols=[6, 7, 9],
-            center_cols=[1, 2, 3, 8],
-        )
+        write_row(ws, row, values, fill=RED_LIGHT, center_cols=[1, 2, 3, 8], bold_cols=[6, 7, 9])
+        row += 1
 
+
+# =========================================================
+# SHEET 9: MASTER SKU HSD
+# =========================================================
+
+def write_master_sku(wb):
+    ws = wb.create_sheet("MASTER SKU HSD")
+    ws.sheet_tab_color = "7C3AED"
+    set_sheet_view(ws)
+
+    title_bar(ws, "A1:F1", "MASTER SKU HSD - KAMUS PRODUK SISTEM", fill=PURPLE)
+
+    set_header(ws, [
+        ("No", 6),
+        ("SKU / Nama yang Dikenali", 42),
+        ("Isi Barang", 55),
+        ("Masuk Ringkasan", 18),
+        ("Masuk Packing", 16),
+        ("Catatan", 45),
+    ], row=3)
+
+    row = 4
+
+    for idx, token in enumerate(sorted(MASTER_SKU.keys()), 1):
+        components = MASTER_SKU[token]
+        isi = " + ".join([f"{c['item']} x{c['qty']}" for c in components])
+        masuk_ringkasan = ", ".join(sorted(set(["Ya" if c.get("ringkasan", True) else "Tidak" for c in components])))
+        masuk_packing = ", ".join(sorted(set(["Ya" if c.get("packing", True) else "Tidak" for c in components])))
+
+        values = [
+            idx,
+            token,
+            isi,
+            masuk_ringkasan,
+            masuk_packing,
+            "Master SKU internal HSD",
+        ]
+
+        fill = PURPLE if idx % 2 == 0 else WHITE
+        write_row(ws, row, values, fill=fill, center_cols=[1, 4, 5], bold_cols=[2, 3])
         row += 1
 
 
@@ -1413,12 +1422,14 @@ def write_excel_multi(rows, output_path):
     data = prepare_data(rows)
 
     write_ringkasan_operasional(wb, data)
-    write_daftar_siap_packing(wb, data)
     write_rekap_kebutuhan_barang(wb, data)
+    write_panduan_siap_packing(wb, data)
+    write_detail_packing_resi(wb, data)
     write_data_order_customer(wb, data)
     write_order_instant(wb, data)
-    write_audit_data(wb, data)
+    write_kontrol_validasi_pdf(wb, data)
     write_perlu_tindakan(wb, data)
+    write_master_sku(wb)
 
     wb.save(output_path)
     return output_path
