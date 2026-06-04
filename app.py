@@ -148,9 +148,20 @@ st.markdown(
         margin-right: 6px;
     }
 
-    .pill-blue { color: #1D4ED8; background: #DBEAFE; }
-    .pill-orange { color: #C2410C; background: #FFEDD5; }
-    .pill-dark { color: #F9FAFB; background: #111827; }
+    .pill-blue {
+        color: #1D4ED8;
+        background: #DBEAFE;
+    }
+
+    .pill-orange {
+        color: #C2410C;
+        background: #FFEDD5;
+    }
+
+    .pill-dark {
+        color: #F9FAFB;
+        background: #111827;
+    }
 
     .metric-card {
         background: #FFFFFF;
@@ -173,7 +184,6 @@ st.markdown(
         color: #111827;
     }
 
-    /* BUTTONS - penting supaya teks tombol selalu kelihatan */
     div.stButton > button,
     div[data-testid="stFormSubmitButton"] button,
     div.stDownloadButton > button {
@@ -203,7 +213,27 @@ st.markdown(
         transform: translateY(-1px);
     }
 
-    /* FILE UPLOADER */
+    button[kind="primary"] {
+        background: linear-gradient(135deg, #F97316, #FDBA24) !important;
+        color: #FFFFFF !important;
+        border: 2px solid #FFEDD5 !important;
+        border-radius: 16px !important;
+        font-weight: 900 !important;
+        font-size: 16px !important;
+        box-shadow: 0 10px 24px rgba(249, 115, 22, 0.35) !important;
+    }
+
+    button[kind="primary"] * {
+        color: #FFFFFF !important;
+        font-weight: 900 !important;
+    }
+
+    button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #EA580C, #F59E0B) !important;
+        color: #FFFFFF !important;
+        transform: translateY(-1px);
+    }
+
     div[data-testid="stFileUploader"] {
         background: #FFFFFF;
         border: 1px dashed #CBD5E1;
@@ -233,7 +263,6 @@ st.markdown(
         color: #FFFFFF !important;
     }
 
-    /* Progress */
     div[data-testid="stProgress"] > div > div {
         background-color: #F97316 !important;
     }
@@ -253,29 +282,6 @@ st.markdown(
         color:#166534;
         margin-top:12px;
     }
-
-/* TOMBOL UTAMA PROSES - ORANGE CERAH */
-button[kind="primary"] {
-    background: linear-gradient(135deg, #F97316, #FDBA24) !important;
-    color: #FFFFFF !important;
-    border: 2px solid #FFEDD5 !important;
-    border-radius: 16px !important;
-    font-weight: 900 !important;
-    font-size: 16px !important;
-    box-shadow: 0 10px 24px rgba(249, 115, 22, 0.35) !important;
-}
-
-button[kind="primary"] * {
-    color: #FFFFFF !important;
-    font-weight: 900 !important;
-}
-
-button[kind="primary"]:hover {
-    background: linear-gradient(135deg, #EA580C, #F59E0B) !important;
-    color: #FFFFFF !important;
-    transform: translateY(-1px);
-}
-    
     </style>
     """,
     unsafe_allow_html=True,
@@ -325,13 +331,15 @@ def save_uploaded_files(upload_map: dict) -> list[dict]:
             file_path = temp_dir / safe_name
             file_path.write_bytes(uploaded.getbuffer())
 
-            saved.append({
-                "path": str(file_path),
-                "filename": uploaded.name,
-                "brand": brand,
-                "shift": shift,
-                "group": group_name,
-            })
+            saved.append(
+                {
+                    "path": str(file_path),
+                    "filename": uploaded.name,
+                    "brand": brand,
+                    "shift": shift,
+                    "group": group_name,
+                }
+            )
 
     return saved
 
@@ -464,6 +472,7 @@ def login_page():
 
     with middle:
         st.markdown("<br><br>", unsafe_allow_html=True)
+
         st.markdown(
             """
             <div class="hsd-card">
@@ -523,6 +532,7 @@ def render_sidebar():
         st.session_state.selected_menu = selected
 
         st.markdown("---")
+
         if st.button("Keluar"):
             do_logout()
 
@@ -637,18 +647,12 @@ def gudang_page():
     with reset_col:
         reset_upload = st.button("🔄 Reset PDF / Ganti File Baru")
 
-        reset_col, process_col = st.columns([1, 2])
-
-    with reset_col:
-        reset_upload = st.button("🔄 Reset PDF / Ganti File Baru")
-
     with process_col:
         process = st.button(
             "🚀 PROSES PDF JADI EXCEL",
             disabled=(total_files == 0),
             help="Upload PDF dulu agar tombol bisa dipakai.",
             type="primary",
-        )
         )
 
     if reset_upload:
@@ -724,6 +728,9 @@ def gudang_page():
         )
 
 
+# =========================
+# KONTEN PAGE
+# =========================
 def konten_page():
     page_header("Konten", "Area kerja divisi konten HSD.")
 
@@ -738,6 +745,9 @@ def konten_page():
     )
 
 
+# =========================
+# LIVE PAGE
+# =========================
 def live_page():
     page_header("Live", "Area kerja divisi live HSD.")
 
