@@ -1,8 +1,10 @@
-import streamlit as st
 import datetime
 import tempfile
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+import streamlit as st
+
 
 # =========================
 # PAGE CONFIG
@@ -14,18 +16,25 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
 # =========================
 # SAFE IMPORTS
 # =========================
 try:
     import parser as hsd_parser
-except Exception:
+except Exception as e:
     hsd_parser = None
+    PARSER_IMPORT_ERROR = e
+else:
+    PARSER_IMPORT_ERROR = None
 
 try:
     import excel_writer as hsd_excel
-except Exception:
+except Exception as e:
     hsd_excel = None
+    EXCEL_IMPORT_ERROR = e
+else:
+    EXCEL_IMPORT_ERROR = None
 
 
 # =========================
@@ -56,6 +65,10 @@ UPLOAD_GROUPS = [
 st.markdown(
     """
     <style>
+    html, body, [class*="css"] {
+        font-family: Calibri, Arial, sans-serif !important;
+    }
+
     .stApp {
         background: #F7F1E8;
         color: #111827;
@@ -73,12 +86,10 @@ st.markdown(
         max-width: 1400px !important;
     }
 
-    /* SIDEBAR */
     section[data-testid="stSidebar"] {
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
-        transform: translateX(0px) !important;
         background: #050505 !important;
         border-right: 1px solid #111827 !important;
         width: 290px !important;
@@ -87,9 +98,6 @@ st.markdown(
     }
 
     section[data-testid="stSidebar"] > div {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
         background: #050505 !important;
         padding: 24px 18px !important;
     }
@@ -98,21 +106,13 @@ st.markdown(
         color: #F9FAFB !important;
     }
 
-    section[data-testid="stSidebar"] .stRadio label {
-        color: #F9FAFB !important;
-        font-weight: 600 !important;
-    }
-
     section[data-testid="stSidebar"] [role="radiogroup"] label {
         background: #111827 !important;
         border: 1px solid #1F2937 !important;
         border-radius: 14px !important;
         padding: 10px 12px !important;
         margin-bottom: 8px !important;
-    }
-
-    section[data-testid="stSidebar"] [role="radiogroup"] label:hover {
-        background: #1F2937 !important;
+        font-weight: 800 !important;
     }
 
     .hsd-card {
@@ -126,7 +126,7 @@ st.markdown(
 
     .hsd-title {
         font-size: 34px;
-        font-weight: 850;
+        font-weight: 900;
         color: #111827;
         margin-bottom: 4px;
         letter-spacing: -0.03em;
@@ -136,6 +136,7 @@ st.markdown(
         font-size: 15px;
         color: #6B7280;
         margin-bottom: 20px;
+        font-weight: 600;
     }
 
     .hsd-pill {
@@ -143,24 +144,13 @@ st.markdown(
         padding: 6px 12px;
         border-radius: 999px;
         font-size: 12px;
-        font-weight: 800;
+        font-weight: 900;
         margin-right: 6px;
     }
 
-    .pill-blue {
-        color: #1D4ED8;
-        background: #DBEAFE;
-    }
-
-    .pill-orange {
-        color: #C2410C;
-        background: #FFEDD5;
-    }
-
-    .pill-dark {
-        color: #F9FAFB;
-        background: #111827;
-    }
+    .pill-blue { color: #1D4ED8; background: #DBEAFE; }
+    .pill-orange { color: #C2410C; background: #FFEDD5; }
+    .pill-dark { color: #F9FAFB; background: #111827; }
 
     .metric-card {
         background: #FFFFFF;
@@ -174,28 +164,43 @@ st.markdown(
         font-size: 13px;
         color: #6B7280;
         margin-bottom: 5px;
+        font-weight: 700;
     }
 
     .metric-value {
         font-size: 26px;
-        font-weight: 850;
+        font-weight: 900;
         color: #111827;
     }
 
-    div.stButton > button {
+    /* BUTTONS - penting supaya teks tombol selalu kelihatan */
+    div.stButton > button,
+    div[data-testid="stFormSubmitButton"] button,
+    div.stDownloadButton > button {
         width: 100%;
         background: #111827 !important;
         color: #FFFFFF !important;
         border: 0 !important;
         border-radius: 14px !important;
-        padding: 0.75rem 1rem !important;
-        font-weight: 800 !important;
+        padding: 0.85rem 1rem !important;
+        font-weight: 900 !important;
+        font-size: 15px !important;
+        box-shadow: 0 8px 18px rgba(17,24,39,0.18) !important;
     }
 
-    div.stButton > button:hover {
-        background: #0F172A !important;
+    div.stButton > button *,
+    div[data-testid="stFormSubmitButton"] button *,
+    div.stDownloadButton > button * {
         color: #FFFFFF !important;
-        border: 0 !important;
+        font-weight: 900 !important;
+    }
+
+    div.stButton > button:hover,
+    div[data-testid="stFormSubmitButton"] button:hover,
+    div.stDownloadButton > button:hover {
+        background: #F97316 !important;
+        color: #FFFFFF !important;
+        transform: translateY(-1px);
     }
 
     /* FILE UPLOADER */
@@ -214,30 +219,39 @@ st.markdown(
     div[data-testid="stFileUploader"] * {
         color: #111827 !important;
         opacity: 1 !important;
-    }
-
-    div[data-testid="stFileUploader"] label,
-    div[data-testid="stFileUploader"] small,
-    div[data-testid="stFileUploader"] p,
-    div[data-testid="stFileUploader"] span {
-        color: #111827 !important;
-        opacity: 1 !important;
+        font-weight: 700 !important;
     }
 
     div[data-testid="stFileUploader"] button {
         background: #111827 !important;
         color: #FFFFFF !important;
         border-radius: 12px !important;
-        font-weight: 700 !important;
+        font-weight: 900 !important;
     }
 
     div[data-testid="stFileUploader"] button * {
         color: #FFFFFF !important;
     }
 
+    /* Progress */
+    div[data-testid="stProgress"] > div > div {
+        background-color: #F97316 !important;
+    }
+
     .small-muted {
         font-size: 13px;
         color: #6B7280;
+        font-weight: 700;
+    }
+
+    .success-box {
+        background:#DCFCE7;
+        border:1px solid #86EFAC;
+        border-radius:18px;
+        padding:18px;
+        font-weight:900;
+        color:#166534;
+        margin-top:12px;
     }
     </style>
     """,
@@ -259,6 +273,12 @@ if "selected_menu" not in st.session_state:
 
 if "upload_reset_counter" not in st.session_state:
     st.session_state.upload_reset_counter = 0
+
+if "last_excel_bytes" not in st.session_state:
+    st.session_state.last_excel_bytes = None
+
+if "last_excel_filename" not in st.session_state:
+    st.session_state.last_excel_filename = None
 
 
 # =========================
@@ -282,75 +302,79 @@ def save_uploaded_files(upload_map: dict) -> list[dict]:
             file_path = temp_dir / safe_name
             file_path.write_bytes(uploaded.getbuffer())
 
-            saved.append(
-                {
-                    "path": str(file_path),
-                    "filename": uploaded.name,
-                    "brand": brand,
-                    "shift": shift,
-                    "group": group_name,
-                }
-            )
+            saved.append({
+                "path": str(file_path),
+                "filename": uploaded.name,
+                "brand": brand,
+                "shift": shift,
+                "group": group_name,
+            })
 
     return saved
 
 
-def call_parser(saved_files: list[dict]):
+def call_parser(saved_files: list[dict], progress_bar=None, status_text=None):
     if hsd_parser is None:
-        raise RuntimeError("File parser.py belum terbaca / error import. Pastikan parser.py ada di repo.")
+        raise RuntimeError(f"parser.py belum terbaca. Error: {PARSER_IMPORT_ERROR}")
+
+    if not hasattr(hsd_parser, "process_pdf") or not callable(hsd_parser.process_pdf):
+        raise RuntimeError("parser.py harus punya function process_pdf(pdf_path, progress_callback=None).")
 
     all_rows = []
     all_errors = []
+    total_files = len(saved_files)
 
-    # parser.py lu punya function: process_pdf(pdf_path, progress_callback=None)
-    if hasattr(hsd_parser, "process_pdf") and callable(hsd_parser.process_pdf):
-        for item in saved_files:
-            result = hsd_parser.process_pdf(item["path"])
+    for file_idx, item in enumerate(saved_files, 1):
+        if status_text:
+            status_text.info(f"📄 Membaca PDF {file_idx} dari {total_files}: {item['filename']}")
 
-            rows = []
-            errors = []
+        def page_progress(page_done, page_total):
+            if progress_bar and page_total:
+                overall = ((file_idx - 1) + (page_done / page_total)) / total_files
+                progress_bar.progress(min(max(overall, 0), 1))
 
-            if isinstance(result, tuple):
-                rows = result[0] if len(result) > 0 else []
-                errors = result[1] if len(result) > 1 else []
-            elif isinstance(result, list):
-                rows = result
-            elif isinstance(result, dict):
-                rows = [result]
+        result = hsd_parser.process_pdf(item["path"], progress_callback=page_progress)
 
-            for row in rows:
-                if isinstance(row, dict):
-                    row.setdefault("brand", item["brand"])
-                    row.setdefault("shift", item["shift"])
-                    row.setdefault("source_file", item["filename"])
-                    row.setdefault("group", item["group"])
+        rows = []
+        errors = []
 
-                all_rows.append(row)
+        if isinstance(result, tuple):
+            rows = result[0] if len(result) > 0 else []
+            errors = result[1] if len(result) > 1 else []
+        elif isinstance(result, list):
+            rows = result
+        elif isinstance(result, dict):
+            rows = [result]
 
-            if errors:
-                for err in errors:
-                    all_errors.append(f"{item['filename']} - {err}")
+        for row in rows:
+            if isinstance(row, dict):
+                row.setdefault("brand", item["brand"])
+                row.setdefault("akun", item["brand"])
+                row.setdefault("shift", item["shift"])
+                row.setdefault("waktu", item["shift"])
+                row.setdefault("source_file", item["filename"])
+                row.setdefault("group", item["group"])
+            all_rows.append(row)
 
-        if all_errors:
-            st.warning(f"Ada {len(all_errors)} catatan error saat baca PDF, tapi data yang berhasil tetap diproses.")
-            with st.expander("Lihat catatan error PDF"):
-                for err in all_errors[:100]:
-                    st.write(err)
+        if errors:
+            for err in errors:
+                all_errors.append(f"{item['filename']} - {err}")
 
-        return all_rows
+    if progress_bar:
+        progress_bar.progress(1.0)
 
-    raise RuntimeError(
-        "Tidak menemukan function process_pdf() di parser.py. Pastikan parser.py sudah benar."
-    )
+    return all_rows, all_errors
+
 
 def call_excel_writer(parsed_data, saved_files: list[dict]) -> bytes:
     if hsd_excel is None:
-        raise RuntimeError("File excel_writer.py belum terbaca / error import. Pastikan excel_writer.py ada di repo.")
+        raise RuntimeError(f"excel_writer.py belum terbaca. Error: {EXCEL_IMPORT_ERROR}")
 
     output_path = Path(tempfile.mkdtemp(prefix="hsd_excel_")) / "rekap_resi_hsd.xlsx"
 
     candidate_names = [
         "write_excel",
+        "write_excel_multi",
         "create_excel",
         "generate_excel",
         "build_excel",
@@ -386,12 +410,9 @@ def call_excel_writer(parsed_data, saved_files: list[dict]) -> bytes:
                     continue
 
     if last_error:
-        raise RuntimeError(f"Excel writer ditemukan, tapi format argumennya tidak cocok: {last_error}")
+        raise RuntimeError(f"Excel writer ditemukan, tapi argumennya tidak cocok: {last_error}")
 
-    raise RuntimeError(
-        "Tidak menemukan function excel writer yang cocok. Tambahkan salah satu: "
-        "write_excel(), create_excel(), generate_excel(), build_excel(), make_excel(), atau export_excel()."
-    )
+    raise RuntimeError("Tidak menemukan function excel writer yang cocok.")
 
 
 def render_metric(label: str, value: str):
@@ -420,13 +441,12 @@ def login_page():
 
     with middle:
         st.markdown("<br><br>", unsafe_allow_html=True)
-
         st.markdown(
             """
             <div class="hsd-card">
                 <div style="font-size:42px; text-align:center;">🧄</div>
                 <div style="font-size:32px; font-weight:900; text-align:center; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
-                <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px;">Operational System</div>
+                <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px; font-weight:700;">Operational System</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -434,7 +454,7 @@ def login_page():
 
         with st.form("login_form"):
             pin = st.text_input("Masukkan PIN", type="password", placeholder="PIN divisi")
-            login = st.form_submit_button("Masuk")
+            login = st.form_submit_button("🔐 Masuk")
 
         if login:
             if pin in ROLES:
@@ -447,7 +467,6 @@ def login_page():
                     st.session_state.selected_menu = ROLES[pin]
 
                 st.rerun()
-
             else:
                 st.error("PIN salah. Coba lagi.")
 
@@ -477,16 +496,10 @@ def render_sidebar():
         if st.session_state.selected_menu in available_menu:
             default_index = available_menu.index(st.session_state.selected_menu)
 
-        selected = st.radio(
-            "Menu Divisi",
-            available_menu,
-            index=default_index,
-        )
-
+        selected = st.radio("Menu Divisi", available_menu, index=default_index)
         st.session_state.selected_menu = selected
 
         st.markdown("---")
-
         if st.button("Keluar"):
             do_logout()
 
@@ -542,7 +555,7 @@ def gudang_page():
             <span class="hsd-pill pill-blue">HSD</span>
             <span class="hsd-pill pill-orange">HSS</span>
             <span class="hsd-pill pill-dark">Gudang</span>
-            <div style="font-size:20px; font-weight:850; color:#111827; margin-top:12px;">Upload PDF Resi</div>
+            <div style="font-size:20px; font-weight:900; color:#111827; margin-top:12px;">Upload PDF Resi</div>
             <div class="small-muted">Upload sesuai brand dan shift. Bisa upload lebih dari satu file di setiap bagian.</div>
         </div>
         """,
@@ -590,18 +603,28 @@ def gudang_page():
     total_files = sum(len(payload["files"] or []) for payload in upload_map.values())
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.info(f"Total file terupload: {total_files} PDF")
+
+    if total_files > 0:
+        st.success(f"✅ Total file terupload: {total_files} PDF. Siap diproses.")
+    else:
+        st.info("Belum ada PDF terupload.")
 
     reset_col, process_col = st.columns([1, 2])
 
     with reset_col:
-        reset_upload = st.button("Reset PDF / Ganti File Baru")
+        reset_upload = st.button("🔄 Reset PDF / Ganti File Baru")
 
     with process_col:
-        process = st.button("Proses PDF → Excel")
+        process = st.button(
+            "🚀 Proses PDF Jadi Excel",
+            disabled=(total_files == 0),
+            help="Upload PDF dulu agar tombol bisa dipakai."
+        )
 
     if reset_upload:
         st.session_state.upload_reset_counter += 1
+        st.session_state.last_excel_bytes = None
+        st.session_state.last_excel_filename = None
         st.success("Upload sudah dikosongkan. Silakan masukkan PDF baru.")
         st.rerun()
 
@@ -610,51 +633,74 @@ def gudang_page():
             st.warning("Upload minimal 1 file PDF dulu.")
             return
 
+        st.session_state.last_excel_bytes = None
+        st.session_state.last_excel_filename = None
+
         try:
-            with st.status("Memproses PDF...", expanded=True) as status:
-                st.write("Menyimpan file sementara...")
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            with st.status("⏳ Memproses PDF menjadi Excel...", expanded=True) as status:
+                st.write("📥 Menyimpan file sementara...")
                 saved_files = save_uploaded_files(upload_map)
 
-                st.write("Membaca resi dari PDF...")
-                parsed_data = call_parser(saved_files)
+                st.write(f"📄 Total PDF yang akan diproses: {len(saved_files)}")
+                parsed_data, parse_errors = call_parser(
+                    saved_files,
+                    progress_bar=progress_bar,
+                    status_text=status_text,
+                )
 
                 parsed_count = len(parsed_data) if hasattr(parsed_data, "__len__") else "-"
-                st.write(f"Data terbaca: {parsed_count} baris/resi")
+                st.write(f"✅ Data produk/resi terbaca: {parsed_count} baris")
 
-                st.write("Membuat Excel...")
+                if parse_errors:
+                    st.warning(f"Ada {len(parse_errors)} catatan parser. Tetap dibuatkan Excel agar bisa dicek.")
+                    with st.expander("Lihat catatan parser"):
+                        for err in parse_errors[:200]:
+                            st.write(err)
+
+                status_text.info("📊 Membuat file Excel...")
+                st.write("📊 Membuat Excel rekap...")
                 excel_bytes = call_excel_writer(parsed_data, saved_files)
 
-                status.update(label="Selesai", state="complete", expanded=False)
+                status.update(label="✅ Excel selesai dibuat", state="complete", expanded=False)
 
             filename = f"Rekap_Resi_HSD_{now_wib().strftime('%Y%m%d_%H%M')}_WIB.xlsx"
+            st.session_state.last_excel_bytes = excel_bytes
+            st.session_state.last_excel_filename = filename
 
-            st.success("Excel berhasil dibuat.")
-
-            st.download_button(
-                label="Download Excel Rekap",
-                data=excel_bytes,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            st.markdown(
+                """
+                <div class="success-box">
+                    ✅ Excel berhasil dibuat. Klik tombol download di bawah.
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
         except Exception as e:
             st.error("Proses gagal.")
             st.exception(e)
-            st.caption(
-                "Kalau error terjadi di bagian parser/excel_writer, kirim isi error-nya atau file parser.py dan excel_writer.py supaya bisa disesuaikan."
-            )
+            st.caption("Kalau error terjadi di parser/excel_writer, kirim isi error-nya.")
+
+    if st.session_state.last_excel_bytes:
+        st.download_button(
+            label="⬇️ Download Excel Hasil Rekap",
+            data=st.session_state.last_excel_bytes,
+            file_name=st.session_state.last_excel_filename or "rekap_resi_hsd.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
 
 
-# =========================
-# KONTEN PAGE
-# =========================
 def konten_page():
     page_header("Konten", "Area kerja divisi konten HSD.")
 
     st.markdown(
         """
         <div class="hsd-card">
-            <div style="font-size:20px; font-weight:850; color:#111827;">Coming Soon</div>
+            <div style="font-size:20px; font-weight:900; color:#111827;">Coming Soon</div>
             <div class="small-muted">Nanti bagian ini bisa diisi kalender konten, ide script, approval, dan database asset.</div>
         </div>
         """,
@@ -662,16 +708,13 @@ def konten_page():
     )
 
 
-# =========================
-# LIVE PAGE
-# =========================
 def live_page():
     page_header("Live", "Area kerja divisi live HSD.")
 
     st.markdown(
         """
         <div class="hsd-card">
-            <div style="font-size:20px; font-weight:850; color:#111827;">Coming Soon</div>
+            <div style="font-size:20px; font-weight:900; color:#111827;">Coming Soon</div>
             <div class="small-muted">Nanti bagian ini bisa diisi jadwal live, target GMV, host, produk, dan evaluasi performa.</div>
         </div>
         """,
