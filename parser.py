@@ -142,6 +142,7 @@ def _build_sku_lookup():
     # Madu
     add(["BGH-MULTI-FLORAL-1-BOTOL", "BGH-MULTI-FLORAL", "MADU-MULTI-FLORAL"], "Madu Multi Floral")
     add(["BGH-BUNGA-KURMA-1-BOTOL", "BGH-BUNGA-KURMA", "MADU-BUNGA-KURMA"], "Madu Bunga Kurma")
+    add(["BLACKGARLIC-LANANG-HSD-100G","BLACKGARLIC-LANANG-BAWANG-HSD-100G","BLACKGARLIC-HSD-100G"], "Black Garlic 100gr")
 
     return m
 
@@ -279,6 +280,9 @@ def merge_broken_lines(text):
         (r"BG-DRINK-ORI-1-\s*\n\s*BOTOL-PROMO", r"BG-DRINK-ORI-1-BOTOL-PROMO"),
         # AAJ: SKU dengan spasi sebelum angka qty di akhir baris
         (r"BG-(100|220|500)GR\s+-\s*\n\s*(\d+)-BOTOL", r"BG-\1GR-\2-BOTOL"),
+        (r"(BG-(?:100|220|500)GR-1)-\s*\n\s*BOTOL", r"\1-BOTOL"),
+        (r"(BG-(?:100|220|500)GR-1-B)\s*\n\s*OTOL", r"\1OTOL"),
+        (r"(BLACKGARLIC-LANANG(?:-BAWANG)?)-\s*\n\s*(HSD-100G)", r"\1-\2"),
     ]
 
     for pattern, repl in fixes:
