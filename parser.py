@@ -526,16 +526,16 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
         return "BG Drink Original", qty_raw
     if "3IN1" in text or "3-IN-1" in text:
         return "BG 3in1 (100gr+220gr+500gr)", qty_raw
-    if "BLACK GARLIC HONEY" in text:
-    if "BUNGA" in text:
+   if "BLACK GARLIC HONEY" in text:
+    if "KURMA" in text or "BUNGA" in text:
         return "Madu Bunga Kurma", qty_raw
-        return "Madu Multi Floral", qty_raw
-    if "MULTI" in text and ("FLORAL" in text or "FLORA" in text):
-        return "Madu Multi Floral", qty_raw
-    if "KURMA" in text:
-        return "Madu Bunga Kurma", qty_raw
-    if "84GR" in text or "84G" in text:
-        return "Black Garlic 84gr", qty_raw
+    return "Madu Multi Floral", qty_raw
+
+if "MULTI" in text and ("FLORAL" in text or "FLORA" in text):
+    return "Madu Multi Floral", qty_raw
+
+if "KURMA" in text:
+    return "Madu Bunga Kurma", qty_raw
 
     # Coba deteksi ukuran dari teks nama produk
     m = re.search(r"BG-(100|220|500)GR-(\d+)-BOTOL", text)
