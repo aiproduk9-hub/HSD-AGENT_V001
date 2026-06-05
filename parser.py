@@ -845,23 +845,24 @@ def process_pdf(pdf_path, progress_callback=None):
             except Exception:
                 pages_text.append("")
 
-        i = 0
-        while i < total:
-            try:
-                text = pages_text[i]
+        skip_next = False
 
-                # Jika halaman ini punya resi tapi tidak ada SKU,
-                # coba gabung dengan halaman berikutnya (pola Wahana/BDO split 2 hal)
+        for i, text in enumerate(pages_text):
+            if skip_next:
+                skip_next = False
+                if progress_callback:
+                    progress_callback(i + 1, total)
+                continue
+
+            try:
+                # Jika halaman punya resi tapi tidak ada SKU,
+                # gabung dengan halaman berikutnya (pola Wahana/BDO split 2 hal)
                 resi = get_resi(text)
                 if resi and not _has_sku_in_text(text) and i + 1 < total:
                     next_text = pages_text[i + 1]
-                    # Gabung hanya jika halaman berikutnya punya SKU
                     if _has_sku_in_text(next_text):
                         text = text + "\n" + next_text
-                        # Skip halaman berikutnya karena sudah digabung
-                        if progress_callback:
-                            progress_callback(i + 1, total)
-                        i += 1
+                        skip_next = True
 
                 page_rows = parse_page(text)
 
@@ -881,7 +882,5 @@ def process_pdf(pdf_path, progress_callback=None):
 
             if progress_callback:
                 progress_callback(i + 1, total)
-
-            i += 1
 
     return all_rows, errors
