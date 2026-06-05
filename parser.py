@@ -525,13 +525,15 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
     if "PROMOSI" in text:
         return "BG Drink Original", qty_raw
     if "3IN1" in text or "3-IN-1" in text:
-        return "BG 3in1 (100gr+220gr+500gr)", qty_raw
-        if "BLACK GARLIC HONEY" in text:
+    return "BG 3in1 (100gr+220gr+500gr)", qty_raw
+
+if "BLACK GARLIC HONEY" in text:
     if "BUNGA" in text:
         return "Madu Bunga Kurma", qty_raw
     return "Madu Multi Floral", qty_raw
-    if "MULTI" in text and ("FLORAL" in text or "FLORA" in text):
-        return "Madu Multi Floral", qty_raw
+
+if "MULTI" in text and ("FLORAL" in text or "FLORA" in text):
+    return "Madu Multi Floral", qty_raw
     if "KURMA" in text:
         return "Madu Bunga Kurma", qty_raw
     if "84GR" in text or "84G" in text:
