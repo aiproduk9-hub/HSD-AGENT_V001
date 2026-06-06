@@ -429,7 +429,7 @@ def write_sheet2(ws, orders_bersih):
     # Perlu gabung produk dalam 1 resi dulu
     resi_produk = defaultdict(list)  # resi → [(nama, qty)]
     for order in orders_bersih:
-        resi = order.get('resi', '')
+        resi = order.get('resi', '') or order.get('no_resi', '')
         nama = order.get('nama_produk', '')
         qty = int(order.get('qty', 1) or 1)
         if resi and nama:
@@ -564,9 +564,9 @@ def write_sheet_perlu_cek(ws, orders_cek):
     for i, order in enumerate(orders_cek):
         bg = "FFF2CC" if i % 2 == 0 else "FFFFFF"
         values = [
-            order.get('resi', ''),
+            order.get('resi', '') or order.get('no_resi', ''),
             order.get('platform', ''),
-            order.get('sku_raw', ''),
+            order.get('sku_raw', '') or order.get('sku', ''),
             order.get('nama_produk', ''),
             order.get('qty', ''),
             order.get('alasan_cek', 'SKU tidak dikenali'),
