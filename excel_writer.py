@@ -82,20 +82,50 @@ PAKET_KOMPONEN = {
     "BG Drink Original 7 Botol": [
         ("BG Drink Original", 7),
     ],
+    # alias lama
+    "BG Drink Original x7": [
+        ("BG Drink Original", 7),
+    ],
     "BG Drink Peach 7 Botol": [
+        ("BG Drink Peach", 7),
+    ],
+    # alias lama
+    "BG Drink Peach x7": [
         ("BG Drink Peach", 7),
     ],
     "BG Drink Mix 7 Botol": [
         ("BG Drink Peach", 4),
         ("BG Drink Original", 3),
     ],
+    # alias lama dengan deskripsi panjang
+    "BG Drink Mix 7 Botol (4 Peach + 3 Original)": [
+        ("BG Drink Peach", 4),
+        ("BG Drink Original", 3),
+    ],
     # Multi-botol dari SKU (x2, x3 di nama produk)
     "Black Garlic 100gr x2": [("Black Garlic 100gr", 2)],
     "Black Garlic 100gr x3": [("Black Garlic 100gr", 3)],
+    "Black Garlic 100gr x4": [("Black Garlic 100gr", 4)],
+    "Black Garlic 100gr x5": [("Black Garlic 100gr", 5)],
     "Black Garlic 220gr x2": [("Black Garlic 220gr", 2)],
     "Black Garlic 220gr x3": [("Black Garlic 220gr", 3)],
+    "Black Garlic 220gr x4": [("Black Garlic 220gr", 4)],
+    "Black Garlic 220gr x5": [("Black Garlic 220gr", 5)],
     "Black Garlic 500gr x2": [("Black Garlic 500gr", 2)],
     "Black Garlic 500gr x3": [("Black Garlic 500gr", 3)],
+    "Black Garlic 500gr x4": [("Black Garlic 500gr", 4)],
+    "Black Garlic 500gr x5": [("Black Garlic 500gr", 5)],
+    # alias lama nama 3in1
+    "BG 3in1 (100gr+220gr+500gr)": [
+        ("Black Garlic 100gr", 1),
+        ("Black Garlic 220gr", 1),
+        ("Black Garlic 500gr", 1),
+    ],
+    # Hampers alias lama (nama panjang)
+    "Black Garlic 220gr x2 + Box Hampers Imlek": [("Black Garlic 220gr", 2), ("Box Hampers", 1)],
+    "Black Garlic 220gr x2 + Box Hampers Lebaran": [("Black Garlic 220gr", 2), ("Box Hampers", 1)],
+    "Black Garlic 220gr x2 + Box Hampers Natal": [("Black Garlic 220gr", 2), ("Box Hampers", 1)],
+    "Black Garlic 220gr x2 + Box Hampers HSD": [("Black Garlic 220gr", 2), ("Box Hampers", 1)],
 }
 
 # Produk yang BUKAN paket (langsung dihitung)
