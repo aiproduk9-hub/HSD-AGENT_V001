@@ -61,17 +61,17 @@ def _build_sku_lookup():
     ], "Black Garlic 84gr")
 
     # BG 3in1
-    add(["BG-3IN1", "BG-3-IN-1"], "BG 3in1 (100gr+220gr+500gr)")
+    add(["BG-3IN1", "BG-3-IN-1"], "Paket 3in1")
 
-    # Hampers
-    add(["BG-220GR-2-BOTOL-HAMPERS-IMLEK"], "Black Garlic 220gr x2 + Box Hampers Imlek")
-    add(["BG-220GR-2-BOTOL-HAMPERS-LEBARAN"], "Black Garlic 220gr x2 + Box Hampers Lebaran")
-    add(["BG-220GR-2-BOTOL-HAMPERS-NATAL"], "Black Garlic 220gr x2 + Box Hampers Natal")
-    add(["BG-220GR-2-BOTOL-HAMPERS-HSD"], "Black Garlic 220gr x2 + Box Hampers HSD")
-    add(["BOX-HAMPERS-IMLEK"], "Box Hampers Imlek")
-    add(["BOX-HAMPERS-HSD"], "Box Hampers HSD")
-    add(["BOX-HAMPERS-NATAL"], "Box Hampers Natal")
-    add(["BOX-HAMPERS-LEBARAN"], "Box Hampers Lebaran")
+    # Hampers — nama harus match persis dengan PAKET_KOMPONEN di excel_writer
+    add(["BG-220GR-2-BOTOL-HAMPERS-IMLEK"], "Hampers Imlek")
+    add(["BG-220GR-2-BOTOL-HAMPERS-LEBARAN"], "Hampers Lebaran")
+    add(["BG-220GR-2-BOTOL-HAMPERS-NATAL"], "Hampers Natal")
+    add(["BG-220GR-2-BOTOL-HAMPERS-HSD"], "Hampers HSD")
+    add(["BOX-HAMPERS-IMLEK"], "Box Hampers")
+    add(["BOX-HAMPERS-HSD"], "Box Hampers")
+    add(["BOX-HAMPERS-NATAL"], "Box Hampers")
+    add(["BOX-HAMPERS-LEBARAN"], "Box Hampers")
 
     # BG Drink
     add([
@@ -83,19 +83,19 @@ def _build_sku_lookup():
 
     add(["BG-DRINK-ORI-2-BOTOL-PROMO", "BG-DRINK-PROMO-2-BTL-ORI", "BG-DRINK-ORIGINAL-2-BOTOL"], "BG Drink Original x2")
     add(["BG-DRINK-PROMO-4-BTL-ORI", "BG-DRINK-ORIGINAL-4-BOTOL"], "BG Drink Original x4")
-    add(["BG-DRINK-ORIGINAL-7-BOTOL", "BG-Drink-Original-7-Botol"], "BG Drink Original x7")
+    add(["BG-DRINK-ORIGINAL-7-BOTOL", "BG-Drink-Original-7-Botol"], "BG Drink Original 7 Botol")
 
     add([
         "BG-DRINK-PEACH", "BG-Drink-Peach", "BG-Drink-Peach-FS",
         "BLACKGARLIC-DRINK-PEACH", "BLACKGARLIC-DRINK-PEACH-FS", "BG-DRINK-PEACH-1-BOTOL",
     ], "BG Drink Peach")
 
-    add(["BG-DRINK-PEACH-7-BOTOL", "BG-Drink-Peach-7-Botol"], "BG Drink Peach x7")
-    add(["BG-DRINK-MIX-7-BOTOL", "BG-Drink-Mix-7-Botol"], "BG Drink Mix 7 Botol (4 Peach + 3 Original)")
+    add(["BG-DRINK-PEACH-7-BOTOL", "BG-Drink-Peach-7-Botol"], "BG Drink Peach 7 Botol")
+    add(["BG-DRINK-MIX-7-BOTOL", "BG-Drink-Mix-7-Botol"], "BG Drink Mix 7 Botol")
 
     # Madu
-    add(["BGH-MULTI-FLORAL-1-BOTOL", "BGH-MULTI-FLORAL", "MADU-MULTI-FLORAL"], "Madu Multi Floral")
-    add(["BGH-BUNGA-KURMA-1-BOTOL", "BGH-BUNGA-KURMA", "MADU-BUNGA-KURMA"], "Madu Bunga Kurma")
+    add(["BGH-MULTI-FLORAL-1-BOTOL", "BGH-MULTI-FLORAL", "MADU-MULTI-FLORAL"], "BG Madu Multi Floral")
+    add(["BGH-BUNGA-KURMA-1-BOTOL", "BGH-BUNGA-KURMA", "MADU-BUNGA-KURMA"], "BG Madu Kurma")
     add(["BLACKGARLIC-LANANG-HSD-100G", "BLACKGARLIC-LANANG-BAWANG-HSD-100G", "BLACKGARLIC-HSD-100G"], "Black Garlic 100gr")
 
     return m
@@ -428,11 +428,11 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
     text = normalize_sku(f"{sku_raw} {nama_produk_raw}").upper()
 
     if "DRINK" in text and "MIX" in text and "7" in text:
-        return "BG Drink Mix 7 Botol (4 Peach + 3 Original)", qty_raw
+        return "BG Drink Mix 7 Botol", qty_raw
     if "DRINK" in text and "PEACH" in text and "7" in text:
-        return "BG Drink Peach x7", qty_raw
+        return "BG Drink Peach 7 Botol", qty_raw
     if "DRINK" in text and "ORIGINAL" in text and "7" in text:
-        return "BG Drink Original x7", qty_raw
+        return "BG Drink Original 7 Botol", qty_raw
     if "DRINK" in text and "PEACH" in text:
         return "BG Drink Peach", qty_raw
     if "DRINK" in text and ("ORIGINAL" in text or "-ORI" in text or "ORI-" in text or "PROMO" in text):
@@ -442,15 +442,25 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
     if "PROMOSI" in text:
         return "BG Drink Original", qty_raw
     if "3IN1" in text or "3-IN-1" in text:
-        return "BG 3in1 (100gr+220gr+500gr)", qty_raw
+        return "Paket 3in1", qty_raw
+    if "HAMPERS" in text and "LEBARAN" in text:
+        return "Hampers Lebaran", qty_raw
+    if "HAMPERS" in text and "IMLEK" in text:
+        return "Hampers Imlek", qty_raw
+    if "HAMPERS" in text and "NATAL" in text:
+        return "Hampers Natal", qty_raw
+    if "HAMPERS" in text and "HSD" in text:
+        return "Hampers HSD", qty_raw
+    if "HAMPERS" in text:
+        return "Hampers HSD", qty_raw
     if "BLACK-GARLIC-HONEY" in text or "BLACK GARLIC HONEY" in text.replace("-", " "):
         if "KURMA" in text or "BUNGA" in text:
-            return "Madu Bunga Kurma", qty_raw
-        return "Madu Multi Floral", qty_raw
+            return "BG Madu Kurma", qty_raw
+        return "BG Madu Multi Floral", qty_raw
     if "MULTI" in text and ("FLORAL" in text or "FLORA" in text):
-        return "Madu Multi Floral", qty_raw
+        return "BG Madu Multi Floral", qty_raw
     if "KURMA" in text:
-        return "Madu Bunga Kurma", qty_raw
+        return "BG Madu Kurma", qty_raw
 
     m = re.search(r"BG-(100|220|500)GR-(\d+)-BOTOL", text)
     if m:
