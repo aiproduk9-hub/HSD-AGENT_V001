@@ -1,9 +1,24 @@
 import datetime
 import tempfile
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import streamlit as st
+
+# Timezone: gunakan pytz sebagai fallback agar aman di semua platform
+try:
+    from zoneinfo import ZoneInfo
+    _TZ = ZoneInfo("Asia/Jakarta")
+    def now_wib() -> datetime.datetime:
+        return datetime.datetime.now(_TZ)
+except Exception:
+    try:
+        import pytz
+        _TZ = pytz.timezone("Asia/Jakarta")
+        def now_wib() -> datetime.datetime:
+            return datetime.datetime.now(_TZ)
+    except Exception:
+        def now_wib() -> datetime.datetime:
+            return datetime.datetime.utcnow() + datetime.timedelta(hours=7)
 
 
 # =========================
@@ -49,13 +64,17 @@ ROLES = {
 
 DIVISIONS = ["Gudang", "Konten", "Live"]
 
+# Label, akun (brand), shift
 UPLOAD_GROUPS = [
-    ("HSD Pagi", "HSD", "Pagi"),
-    ("HSD Siang", "HSD", "Siang"),
-    ("HSD Sore", "HSD", "Sore"),
-    ("HSS Pagi", "HSS", "Pagi"),
-    ("HSS Siang", "HSS", "Siang"),
-    ("HSS Sore", "HSS", "Sore"),
+    ("HSD Jakarta Pagi",    "HSD Jakarta",    "Pagi"),
+    ("HSD Jakarta Siang",   "HSD Jakarta",    "Siang"),
+    ("HSD Jakarta Sore",    "HSD Jakarta",    "Sore"),
+    ("HSD Surabaya Pagi",   "HSD Surabaya",   "Pagi"),
+    ("HSD Surabaya Siang",  "HSD Surabaya",   "Siang"),
+    ("HSD Surabaya Sore",   "HSD Surabaya",   "Sore"),
+    ("HSS Pagi",            "HSS",            "Pagi"),
+    ("HSS Siang",           "HSS",            "Siang"),
+    ("HSS Sore",            "HSS",            "Sore"),
 ]
 
 
@@ -148,20 +167,10 @@ st.markdown(
         margin-right: 6px;
     }
 
-    .pill-blue {
-        color: #1D4ED8;
-        background: #DBEAFE;
-    }
-
-    .pill-orange {
-        color: #C2410C;
-        background: #FFEDD5;
-    }
-
-    .pill-dark {
-        color: #F9FAFB;
-        background: #111827;
-    }
+    .pill-blue   { color: #1D4ED8; background: #DBEAFE; }
+    .pill-orange { color: #C2410C; background: #FFEDD5; }
+    .pill-dark   { color: #F9FAFB; background: #111827; }
+    .pill-green  { color: #166534; background: #DCFCE7; }
 
     .metric-card {
         background: #FFFFFF;
@@ -282,6 +291,17 @@ st.markdown(
         color:#166534;
         margin-top:12px;
     }
+
+    .upload-section-header {
+        font-size: 16px;
+        font-weight: 900;
+        color: #1F3864;
+        background: #DBEAFE;
+        border-radius: 12px;
+        padding: 8px 14px;
+        margin-bottom: 8px;
+        margin-top: 4px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -313,11 +333,7 @@ if "last_excel_filename" not in st.session_state:
 # =========================
 # HELPERS
 # =========================
-def now_wib() -> datetime.datetime:
-    return datetime.datetime.now(ZoneInfo("Asia/Jakarta"))
-
-
-def save_uploaded_files(upload_map: dict) -> list[dict]:
+def save_uploaded_files(upload_map: dict) -> list:
     saved = []
     temp_dir = Path(tempfile.mkdtemp(prefix="hsd_agent_"))
 
@@ -336,6 +352,7 @@ def save_uploaded_files(upload_map: dict) -> list[dict]:
                     "path": str(file_path),
                     "filename": uploaded.name,
                     "brand": brand,
+                    "akun": brand,
                     "shift": shift,
                     "group": group_name,
                 }
@@ -344,7 +361,7 @@ def save_uploaded_files(upload_map: dict) -> list[dict]:
     return saved
 
 
-def call_parser(saved_files: list[dict], progress_bar=None, status_text=None):
+def call_parser(saved_files: list, progress_bar=None, status_text=None):
     if hsd_parser is None:
         raise RuntimeError(f"parser.py belum terbaca. Error: {PARSER_IMPORT_ERROR}")
 
@@ -359,9 +376,9 @@ def call_parser(saved_files: list[dict], progress_bar=None, status_text=None):
         if status_text:
             status_text.info(f"📄 Membaca PDF {file_idx} dari {total_files}: {item['filename']}")
 
-        def page_progress(page_done, page_total):
+        def page_progress(page_done, page_total, _idx=file_idx):
             if progress_bar and page_total:
-                overall = ((file_idx - 1) + (page_done / page_total)) / total_files
+                overall = ((_idx - 1) + (page_done / page_total)) / total_files
                 progress_bar.progress(min(max(overall, 0), 1))
 
         result = hsd_parser.process_pdf(item["path"], progress_callback=page_progress)
@@ -370,7 +387,7 @@ def call_parser(saved_files: list[dict], progress_bar=None, status_text=None):
         errors = []
 
         if isinstance(result, tuple):
-            rows = result[0] if len(result) > 0 else []
+            rows   = result[0] if len(result) > 0 else []
             errors = result[1] if len(result) > 1 else []
         elif isinstance(result, list):
             rows = result
@@ -379,17 +396,16 @@ def call_parser(saved_files: list[dict], progress_bar=None, status_text=None):
 
         for row in rows:
             if isinstance(row, dict):
-                row.setdefault("brand", item["brand"])
-                row.setdefault("akun", item["brand"])
-                row.setdefault("shift", item["shift"])
-                row.setdefault("waktu", item["shift"])
+                row.setdefault("brand",       item["brand"])
+                row.setdefault("akun",        item["brand"])
+                row.setdefault("shift",       item["shift"])
+                row.setdefault("waktu",       item["shift"])
                 row.setdefault("source_file", item["filename"])
-                row.setdefault("group", item["group"])
+                row.setdefault("group",       item["group"])
             all_rows.append(row)
 
-        if errors:
-            for err in errors:
-                all_errors.append(f"{item['filename']} - {err}")
+        for err in errors:
+            all_errors.append(f"{item['filename']} - {err}")
 
     if progress_bar:
         progress_bar.progress(1.0)
@@ -397,7 +413,7 @@ def call_parser(saved_files: list[dict], progress_bar=None, status_text=None):
     return all_rows, all_errors
 
 
-def call_excel_writer(parsed_data, saved_files: list[dict]) -> bytes:
+def call_excel_writer(parsed_data, saved_files: list) -> bytes:
     if hsd_excel is None:
         raise RuntimeError(f"excel_writer.py belum terbaca. Error: {EXCEL_IMPORT_ERROR}")
 
@@ -417,28 +433,27 @@ def call_excel_writer(parsed_data, saved_files: list[dict]) -> bytes:
 
     for name in candidate_names:
         fn = getattr(hsd_excel, name, None)
+        if not callable(fn):
+            continue
 
-        if callable(fn):
-            for args in [
-                (parsed_data, str(output_path)),
-                (parsed_data, saved_files, str(output_path)),
-                (parsed_data,),
-            ]:
-                try:
-                    result = fn(*args)
+        for args in [
+            (parsed_data, str(output_path)),
+            (parsed_data, saved_files, str(output_path)),
+            (parsed_data,),
+        ]:
+            try:
+                result = fn(*args)
 
-                    if isinstance(result, bytes):
-                        return result
+                if isinstance(result, bytes):
+                    return result
+                if isinstance(result, (str, Path)) and Path(result).exists():
+                    return Path(result).read_bytes()
+                if output_path.exists():
+                    return output_path.read_bytes()
 
-                    if isinstance(result, (str, Path)) and Path(result).exists():
-                        return Path(result).read_bytes()
-
-                    if output_path.exists():
-                        return output_path.read_bytes()
-
-                except TypeError as e:
-                    last_error = e
-                    continue
+            except TypeError as e:
+                last_error = e
+                continue
 
     if last_error:
         raise RuntimeError(f"Excel writer ditemukan, tapi argumennya tidak cocok: {last_error}")
@@ -473,16 +488,30 @@ def login_page():
     with middle:
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-        st.markdown(
-            """
-            <div class="hsd-card">
-                <div style="font-size:42px; text-align:center;">🧄</div>
-                <div style="font-size:32px; font-weight:900; text-align:center; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
-                <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px; font-weight:700;">Operational System</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        # Logo HSD jika ada, fallback ke emoji
+        logo_path = Path("HSD-Logo1.png")
+        if logo_path.exists():
+            st.image(str(logo_path), width=120)
+            st.markdown(
+                """
+                <div class="hsd-card">
+                    <div style="font-size:32px; font-weight:900; text-align:center; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
+                    <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px; font-weight:700;">Operational System</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                """
+                <div class="hsd-card">
+                    <div style="font-size:42px; text-align:center;">🧄</div>
+                    <div style="font-size:32px; font-weight:900; text-align:center; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
+                    <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px; font-weight:700;">Operational System</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         with st.form("login_form"):
             pin = st.text_input("Masukkan PIN", type="password", placeholder="PIN divisi")
@@ -492,12 +521,7 @@ def login_page():
             if pin in ROLES:
                 st.session_state.logged_in = True
                 st.session_state.role = ROLES[pin]
-
-                if ROLES[pin] == "Manager/BOD":
-                    st.session_state.selected_menu = "Gudang"
-                else:
-                    st.session_state.selected_menu = ROLES[pin]
-
+                st.session_state.selected_menu = "Gudang" if ROLES[pin] == "Manager/BOD" else ROLES[pin]
                 st.rerun()
             else:
                 st.error("PIN salah. Coba lagi.")
@@ -510,7 +534,13 @@ def login_page():
 # =========================
 def render_sidebar():
     with st.sidebar:
-        st.markdown("# 🧄 HSD AGENT")
+        # Logo di sidebar jika ada
+        logo_path = Path("HSD-Logo1.png")
+        if logo_path.exists():
+            st.image(str(logo_path), width=100)
+        else:
+            st.markdown("# 🧄 HSD AGENT")
+
         st.caption("Operational System")
         st.markdown("---")
 
@@ -566,30 +596,28 @@ def page_header(title: str, subtitle: str):
 def gudang_page():
     page_header(
         "Gudang",
-        "Upload PDF resi HSD/HSS, proses otomatis, lalu download Excel rekap.",
+        "Upload PDF resi HSD Jakarta / HSD Surabaya / HSS, proses otomatis, lalu download Excel rekap.",
     )
 
     c1, c2, c3 = st.columns(3)
-
-    with c1:
-        render_metric("Limit Upload", "2GB")
-
-    with c2:
-        render_metric("Format", "PDF → Excel")
-
-    with c3:
-        render_metric("Zona Waktu", "WIB")
+    with c1: render_metric("Limit Upload", "2GB")
+    with c2: render_metric("Format", "PDF → Excel")
+    with c3: render_metric("Zona Waktu", "WIB")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(
         """
         <div class="hsd-card">
-            <span class="hsd-pill pill-blue">HSD</span>
+            <span class="hsd-pill pill-blue">HSD Jakarta</span>
+            <span class="hsd-pill pill-green">HSD Surabaya</span>
             <span class="hsd-pill pill-orange">HSS</span>
             <span class="hsd-pill pill-dark">Gudang</span>
             <div style="font-size:20px; font-weight:900; color:#111827; margin-top:12px;">Upload PDF Resi</div>
-            <div class="small-muted">Upload sesuai brand dan shift. Bisa upload lebih dari satu file di setiap bagian.</div>
+            <div class="small-muted">
+                Upload sesuai brand, cabang, dan shift. Bisa upload lebih dari satu file di setiap bagian.<br>
+                <b>Order offline tidak masuk sistem</b> — isi manual di Excel setelah download.
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -597,41 +625,41 @@ def gudang_page():
 
     upload_map = {}
 
-    hsd_col, hss_col = st.columns(2)
+    # 3 kolom: HSD Jakarta | HSD Surabaya | HSS
+    col_jkt, col_sby, col_hss = st.columns(3)
 
-    with hsd_col:
-        st.markdown("### HSD")
-
-        for label, brand, shift in UPLOAD_GROUPS[:3]:
+    with col_jkt:
+        st.markdown("<div class='upload-section-header'>🏙️ HSD Jakarta</div>", unsafe_allow_html=True)
+        for label, brand, shift in UPLOAD_GROUPS[:3]:   # indeks 0-2
             files = st.file_uploader(
                 label,
                 type=["pdf"],
                 accept_multiple_files=True,
                 key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
             )
+            upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
-            upload_map[label] = {
-                "brand": brand,
-                "shift": shift,
-                "files": files,
-            }
-
-    with hss_col:
-        st.markdown("### HSS")
-
-        for label, brand, shift in UPLOAD_GROUPS[3:]:
+    with col_sby:
+        st.markdown("<div class='upload-section-header'>🌊 HSD Surabaya</div>", unsafe_allow_html=True)
+        for label, brand, shift in UPLOAD_GROUPS[3:6]:  # indeks 3-5
             files = st.file_uploader(
                 label,
                 type=["pdf"],
                 accept_multiple_files=True,
                 key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
             )
+            upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
-            upload_map[label] = {
-                "brand": brand,
-                "shift": shift,
-                "files": files,
-            }
+    with col_hss:
+        st.markdown("<div class='upload-section-header'>⭐ HSS</div>", unsafe_allow_html=True)
+        for label, brand, shift in UPLOAD_GROUPS[6:]:   # indeks 6-8
+            files = st.file_uploader(
+                label,
+                type=["pdf"],
+                accept_multiple_files=True,
+                key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
+            )
+            upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
     total_files = sum(len(payload["files"] or []) for payload in upload_map.values())
 
@@ -672,7 +700,7 @@ def gudang_page():
 
         try:
             progress_bar = st.progress(0)
-            status_text = st.empty()
+            status_text  = st.empty()
 
             with st.status("⏳ Memproses PDF menjadi Excel...", expanded=True) as status:
                 st.write("📥 Menyimpan file sementara...")
@@ -701,7 +729,7 @@ def gudang_page():
                 status.update(label="✅ Excel selesai dibuat", state="complete", expanded=False)
 
             filename = f"Rekap_Resi_HSD_{now_wib().strftime('%Y%m%d_%H%M')}_WIB.xlsx"
-            st.session_state.last_excel_bytes = excel_bytes
+            st.session_state.last_excel_bytes    = excel_bytes
             st.session_state.last_excel_filename = filename
 
             st.markdown(
@@ -733,12 +761,11 @@ def gudang_page():
 # =========================
 def konten_page():
     page_header("Konten", "Area kerja divisi konten HSD.")
-
     st.markdown(
         """
         <div class="hsd-card">
             <div style="font-size:20px; font-weight:900; color:#111827;">Coming Soon</div>
-            <div class="small-muted">Nanti bagian ini bisa diisi kalender konten, ide script, approval, dan database asset.</div>
+            <div class="small-muted">Kalender konten, ide script, approval, dan database asset.</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -750,12 +777,11 @@ def konten_page():
 # =========================
 def live_page():
     page_header("Live", "Area kerja divisi live HSD.")
-
     st.markdown(
         """
         <div class="hsd-card">
             <div style="font-size:20px; font-weight:900; color:#111827;">Coming Soon</div>
-            <div class="small-muted">Nanti bagian ini bisa diisi jadwal live, target GMV, host, produk, dan evaluasi performa.</div>
+            <div class="small-muted">Jadwal live, target GMV, host, produk, dan evaluasi performa.</div>
         </div>
         """,
         unsafe_allow_html=True,
