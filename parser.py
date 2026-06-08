@@ -13,7 +13,6 @@ def _build_sku_lookup():
         for k in keys:
             m[_norm_key(k)] = nama
 
-    # Black Garlic 100gr - 1 botol
     add([
         "BG-100GR-1-BOTOL", "BG-100GR-1-BOTOL-3CM", "BG-100GR-1-BOTOL-BG-SKU",
         "BG-100GR-1-BOTOL-BG-SKU1", "BG-100GR-1-BOTOL-BH", "BG-100GR-1-BOTOL-BH-SKU",
@@ -27,7 +26,6 @@ def _build_sku_lookup():
     add(["BG-100GR-4-BOTOL", "BG-100GR-1-BOTOL-BG-SKU4", "BG-100GR-1-BOTOL-BH-SKU4"], "Black Garlic 100gr x4")
     add(["BG-100GR-5-BOTOL", "BG-100GR-1-BOTOL-BG-SKU5", "BG-100GR-1-BOTOL-BH-SKU5"], "Black Garlic 100gr x5")
 
-    # Black Garlic 220gr - 1 botol
     add([
         "BG-220GR-1-BOTOL", "BG-220GR-1-BOTOL-BG-SKU", "BG-220GR-1-BOTOL-BG-SKU1",
         "BG-220GR-1-BOTOL-BH", "BG-220GR-1-BOTOL-BH-SKU", "BG-220GR-1 BOTOL-BH-SKU",
@@ -41,7 +39,6 @@ def _build_sku_lookup():
     add(["BG-220GR-4-BOTOL", "BG-220GR-1-BOTOL-BG-SKU4"], "Black Garlic 220gr x4")
     add(["BG-220GR-5-BOTOL", "BG-220GR-1-BOTOL-BG-SKU5"], "Black Garlic 220gr x5")
 
-    # Black Garlic 500gr - 1 botol
     add([
         "BG-500GR-1-BOTOL", "BG-500GR-1-BOTOL-BH", "BG-500GR-1-BOTOL-BG-SKU",
         "BG-500GR-1-BOTOL-BG-SKU1", "BG-500GR-1-BOTOL-BH-SKU", "BG-500GR-1 BOTOL-BH-SKU",
@@ -54,16 +51,12 @@ def _build_sku_lookup():
     add(["BG-500GR-4-BOTOL", "BG-500GR-1-BOTOL-BG-SKU4"], "Black Garlic 500gr x4")
     add(["BG-500GR-5-BOTOL", "BG-500GR-1-BOTOL-BG-SKU5"], "Black Garlic 500gr x5")
 
-    # Black Garlic 84gr
     add([
         "BLACKGARLIC-HONAN-HSD-84G-3PCS", "BG-84GR-CLOVER",
         "BG-84GR-1-CLOVER", "BG-84GR-1-BOTOL",
     ], "Black Garlic 84gr")
 
-    # BG 3in1
     add(["BG-3IN1", "BG-3-IN-1"], "Paket 3in1")
-
-    # Hampers — nama harus match persis dengan PAKET_KOMPONEN di excel_writer
     add(["BG-220GR-2-BOTOL-HAMPERS-IMLEK"], "Hampers Imlek")
     add(["BG-220GR-2-BOTOL-HAMPERS-LEBARAN"], "Hampers Lebaran")
     add(["BG-220GR-2-BOTOL-HAMPERS-NATAL"], "Hampers Natal")
@@ -73,7 +66,6 @@ def _build_sku_lookup():
     add(["BOX-HAMPERS-NATAL"], "Box Hampers")
     add(["BOX-HAMPERS-LEBARAN"], "Box Hampers")
 
-    # BG Drink
     add([
         "BG-DRINK-ORI-1-BOTOL-PROMO", "BG-DRINK-PROMO-1-BTL-ORI", "BG-PROMO-ORI-1-BOTOL",
         "BG-DRINK-ORIGINAL", "BG-DRINK-ORI", "BG-DRINK-PROMO", "BG-DRINK-PROMO-ORI",
@@ -93,9 +85,10 @@ def _build_sku_lookup():
     add(["BG-DRINK-PEACH-7-BOTOL", "BG-Drink-Peach-7-Botol"], "BG Drink Peach 7 Botol")
     add(["BG-DRINK-MIX-7-BOTOL", "BG-Drink-Mix-7-Botol"], "BG Drink Mix 7 Botol")
 
-    # Madu
-    add(["BGH-MULTI-FLORAL-1-BOTOL", "BGH-MULTI-FLORAL", "MADU-MULTI-FLORAL"], "BG Madu Multi Floral")
-    add(["BGH-BUNGA-KURMA-1-BOTOL", "BGH-BUNGA-KURMA", "MADU-BUNGA-KURMA"], "BG Madu Kurma")
+    add(["BGH-MULTI-FLORAL-1-BOTOL", "BGH-MULTI-FLORAL", "MADU-MULTI-FLORAL",
+         "BGH-MULTI", "BGH-MULTI-1-BOTOL"], "BG Madu Multi Floral")
+    add(["BGH-BUNGA-KURMA-1-BOTOL", "BGH-BUNGA-KURMA", "MADU-BUNGA-KURMA",
+         "BGH-BUNGA", "BGH-BUNGA-1-BOTOL"], "BG Madu Kurma")
     add(["BLACKGARLIC-LANANG-HSD-100G", "BLACKGARLIC-LANANG-BAWANG-HSD-100G", "BLACKGARLIC-HSD-100G"], "Black Garlic 100gr")
 
     return m
@@ -120,7 +113,6 @@ SKU_LOOKUP = _build_sku_lookup()
 
 def lookup_sku(raw_sku, fallback_nama=""):
     candidates = [raw_sku, fallback_nama, f"{raw_sku} {fallback_nama}"]
-
     for c in candidates:
         if not c:
             continue
@@ -129,22 +121,14 @@ def lookup_sku(raw_sku, fallback_nama=""):
             return SKU_LOOKUP[key], None
 
     raw_upper = _norm_key(raw_sku)
-
     m = re.search(r"(BG-(?:100|220|500)GR-1-BOTOL(?:-BG|-BH)?-?SKU?)(\d+)$", raw_upper)
     if m:
         base = m.group(1).rstrip("-")
         qty_override = int(m.group(2))
         if base in SKU_LOOKUP:
             return SKU_LOOKUP[base], qty_override
-        for suffix in ["-BG-SKU", "-BH-SKU", "-BG", "-BH"]:
-            trimmed = base.rstrip(suffix.replace("-", "")).rstrip("-")
-            if trimmed in SKU_LOOKUP:
-                return SKU_LOOKUP[trimmed], qty_override
 
-    for suffix in [
-        "-BG-SKU1", "-BH-SKU1", "-BG-SKU", "-BH-SKU",
-        "-BG-SKU2", "-BH-SKU2", "-BG", "-BH", "-V2", "-3CM",
-    ]:
+    for suffix in ["-BG-SKU1", "-BH-SKU1", "-BG-SKU", "-BH-SKU", "-BG-SKU2", "-BH-SKU2", "-BG", "-BH", "-V2", "-3CM"]:
         if raw_upper.endswith(suffix):
             trimmed = raw_upper[: -len(suffix)]
             if trimmed in SKU_LOOKUP:
@@ -152,10 +136,6 @@ def lookup_sku(raw_sku, fallback_nama=""):
 
     return None, None
 
-
-# =========================
-# BASIC HELPER
-# =========================
 
 def clean(s):
     if s is None:
@@ -187,9 +167,76 @@ def to_int(v, default=0):
 def merge_broken_lines(text):
     if not text:
         return ""
-
     text = text.replace("\uFFFE", " ")
 
+    # ============================================================
+    # FIX CROSS-COLUMN SHOPEE 11003 / SPXID (format baru)
+    # ============================================================
+
+    # POLA 1: BGH- BUNGA KURMA QTY \n ... BUNGA- \n KURMA-N- \n BOTOL
+    text = re.sub(
+        r"BGH-\s+BUNGA\s+KURMA\s+(\d+)\n[^\n]*BUNGA-\n[^\n]*KURMA-\d+-\n[^\n]*BOTOL",
+        lambda m: f"BGH-BUNGA-KURMA-1-BOTOL __CCQTY{m.group(1)}__",
+        text, flags=re.I
+    )
+    # POLA 2: BGH- QTY \n ... BUNGA- \n KURMA-N- \n BOTOL
+    text = re.sub(
+        r"BGH-\s+(\d+)\n[^\n]*BUNGA-\n[^\n]*KURMA-\d+-\n[^\n]*BOTOL",
+        lambda m: f"BGH-BUNGA-KURMA-1-BOTOL __CCQTY{m.group(1)}__",
+        text, flags=re.I
+    )
+    # POLA 3: BGH- MULTI FLORAL QTY \n ... FLORAL- \n N-BOTOL
+    text = re.sub(
+        r"BGH-\s+MULTI\s+FLORAL\s+(\d+)\n[^\n]*FLORAL-\n[^\n]*\d+-BOTOL",
+        lambda m: f"BGH-MULTI-FLORAL-1-BOTOL __CCQTY{m.group(1)}__",
+        text, flags=re.I
+    )
+    # POLA 4: BG- 500GR QTY \n ... 500GR- \n SKU
+    text = re.sub(
+        r"BG-\s+(100|220|500)\s*GR\s+(\d+)\s*\n[^\n]*(100|220|500)GR-\s*\n\s*SKU",
+        lambda m: f"BG-{m.group(1)}GR-SKU __CCQTY{m.group(2)}__",
+        text, flags=re.I
+    )
+    # POLA 5: BG- 500GR QTY \n ... 500GR-N- \n ... BOTOL
+    text = re.sub(
+        r"BG-\s+(100|220|500)\s*GR\s+(\d+)\s*\n[^\n]*(100|220|500)GR-(\d+)-\s*\n[^\n]*BOTOL",
+        lambda m: f"BG-{m.group(1)}GR-{m.group(4)}-BOTOL __CCQTY{m.group(2)}__",
+        text, flags=re.I
+    )
+    # POLA 6: BG-100GR- QTY \n ... SKU  (SPXID, SKU prefix sudah sebagian)
+    text = re.sub(
+        r"(BG-(?:100|220|500)GR)-\s+(?:100|220|500)\s*GR[^\n]*?(\d+)\s*\n[^\n]*\bSKU\b",
+        lambda m: f"{m.group(1)}-SKU __CCQTY{m.group(2)}__",
+        text, flags=re.I
+    )
+    # POLA 7: BG- 100GR 3CM QTY \n ... 100GR-N- \n ... BOTOL- (new packaging)
+    text = re.sub(
+        r"BG-\s+(100|220|500)GR\s+\w+\s+(\d+)\n[^\n]*(100|220|500)GR-(\d+)-\n[^\n]*BOTOL-?",
+        lambda m: f"BG-{m.group(1)}GR-{m.group(4)}-BOTOL __CCQTY{m.group(2)}__",
+        text, flags=re.I
+    )
+    # POLA 8: BG- 100 GR 3 CM QTY \n ... 100GR- \n N Hari SKU
+    text = re.sub(
+        r"BG-\s+(100|220|500)\s*GR[^\n]*?(\d+)\n[^\n]*(100|220|500)GR-\n[^\n]*SKU",
+        lambda m: f"BG-{m.group(1)}GR-SKU __CCQTY{m.group(2)}__",
+        text, flags=re.I
+    )
+    # POLA 9: BG- 100 GR 3 cm QTY \n ... 100GR-N- \n BOTOL (multi botol)
+    text = re.sub(
+        r"BG-\s+(100|220|500)\s*GR[^\n]*?(\d+)\n[^\n]*(100|220|500)GR-(\d+)-\n[^\n]*BOTOL",
+        lambda m: f"BG-{m.group(1)}GR-{m.group(4)}-BOTOL __CCQTY{m.group(2)}__",
+        text, flags=re.I
+    )
+    # POLA 10 (HSS): BG-SIZEGR- QTY \n ... N-BOTOL  (ada kolom Lokasi di tengah)
+    text = re.sub(
+        r"(BG-(?:100|220|500)GR)-\s+(\d+)\s*\n[^\n]*(\d+)-BOTOL",
+        lambda m: f"{m.group(1)}-{m.group(3)}-BOTOL __CCQTY{m.group(2)}__",
+        text, flags=re.I
+    )
+
+    # ============================================================
+    # FIX STANDAR
+    # ============================================================
     fixes = [
         (r"BG-(100|220|500)GR-\s*\n\s*(\d+)-BOTOL", r"BG-\1GR-\2-BOTOL"),
         (r"BG-(100|220|500)GR-1-\s*\n\s*BOTOL", r"BG-\1GR-1-BOTOL"),
@@ -212,36 +259,23 @@ def merge_broken_lines(text):
         (r"(BG-(?:100|220|500)GR-1)-\s*\n\s*BOTOL", r"\1-BOTOL"),
         (r"(BG-(?:100|220|500)GR-1-B)\s*\n\s*OTOL", r"\1OTOL"),
         (r"(BLACKGARLIC-LANANG(?:-BAWANG)?)-\s*\n\s*(HSD-100G)", r"\1-\2"),
-        # SPX ECO: jarak hingga 100 karakter sebelum SKU
-        (r"(BG-(?:100|220|500)GR)-[\s\S]{0,100}?\b(SKU)\b", lambda mo: mo.group(1) + "-SKU"),
+        (r"(BG-)\s*\n\s*((?:100|220|500)GR-\S+)", r"\1\2"),
+        (r"(BG-(?:100|220|500)GR-)\s*\n\s*(SKU\b)", r"\1\2"),
     ]
-
     for pattern, repl in fixes:
-        if callable(repl):
-            text = re.sub(pattern, repl, text, flags=re.I)
-        else:
-            text = re.sub(pattern, repl, text, flags=re.I)
-
+        text = re.sub(pattern, repl, text, flags=re.I)
     return text
 
 
-# =========================
-# DETECT PLATFORM / KURIR
-# =========================
-
 def detect(text):
     t = text.upper()
-
     if "BLIBLI" in t or "BLIBLI.COM" in t:
         kurir = "J&T Express" if ("JNT" in t or "J&T" in t) else "Unknown"
         return "Blibli", kurir, "CASHLESS"
-
     if "LAZADA" in t or "LXAD" in t or "LEX" in t:
         return "Lazada", "LEX", "STANDARD"
-
     if "GOSEND" in t or "GO-SEND" in t:
         return "Shopee", "Gosend", "Instant"
-
     if "SHOPEE" in t:
         if "SICEPAT" in t:
             return "Shopee", "SiCepat", "REG"
@@ -252,10 +286,8 @@ def detect(text):
         if "WAHANA" in t or re.search(r"\bBDO\d+", text):
             return "Shopee", "Wahana", "Reguler"
         return "Shopee", "Unknown", "REG"
-
     if re.search(r"\bSPXID\d+", text):
         return "Shopee", "Shopee Express", "ECO"
-
     if re.search(r"\bJX\d{10}\b", text) or "JET.CO.ID" in t or "J&T" in t or "JNT" in t:
         layanan = "EZ"
         for s in ["NDD", "ECO", "EZ", "REG"]:
@@ -263,23 +295,15 @@ def detect(text):
                 layanan = s
                 break
         return "TikTok", "J&T Express", layanan
-
     if re.search(r"\bGTL\d{8,12}\b", text):
         layanan = "NDD" if "NDD" in t else "REG"
         return "TikTok", "GTL", layanan
-
     if re.search(r"\b(0046\d{8,12}|00296\d{7,12})\b", text) or "SICEPAT" in t:
         return "TikTok", "SiCepat", "REG"
-
     if re.search(r"\bCM\d{10,15}\b", text):
         return "TikTok", "Wahana", "REG"
-
     return "Unknown", "Unknown", "-"
 
-
-# =========================
-# BASIC FIELD EXTRACTOR
-# =========================
 
 def get_resi(text):
     patterns = [
@@ -298,16 +322,13 @@ def get_resi(text):
         r"\b(JJ\d{8,15})\b",
         r"\b(11\d{12,14})\b",
     ]
-
     for p in patterns:
         m = re.search(p, text, re.I)
         if m:
             return clean(m.group(1))
-
     m = re.search(r"(?:No\.?\s*Pesanan|Nomor\s*Order)\s*[::]?\s*([A-Z0-9]{8,})", text, re.I)
     if m:
         return clean(m.group(1))
-
     return ""
 
 
@@ -362,7 +383,6 @@ def get_penerima(text):
 
 def get_alamat(text):
     lines = [clean(x) for x in text.split("\n") if clean(x)]
-
     for i, line in enumerate(lines):
         if line.lower().startswith("penerima:"):
             chunk = []
@@ -374,7 +394,6 @@ def get_alamat(text):
                     chunk.append(lj)
             if chunk:
                 return " ".join(chunk)
-
     for i, line in enumerate(lines):
         if re.search(r"Penerima\s*:", line, re.I):
             chunk = []
@@ -386,7 +405,6 @@ def get_alamat(text):
                     chunk.append(lj)
             if chunk:
                 return " ".join(chunk)
-
     capture = False
     chunk = []
     for line in lines:
@@ -402,27 +420,46 @@ def get_alamat(text):
                 break
     if chunk:
         return " ".join(chunk)
-
     return ""
 
 
-# =========================
-# PRODUCT HELPERS
-# =========================
+# Mapping multi-botol ke jumlah botol satuan
+_MULTI_BOTOL = {
+    "Black Garlic 100gr x2": ("Black Garlic 100gr", 2),
+    "Black Garlic 100gr x3": ("Black Garlic 100gr", 3),
+    "Black Garlic 100gr x4": ("Black Garlic 100gr", 4),
+    "Black Garlic 100gr x5": ("Black Garlic 100gr", 5),
+    "Black Garlic 220gr x2": ("Black Garlic 220gr", 2),
+    "Black Garlic 220gr x3": ("Black Garlic 220gr", 3),
+    "Black Garlic 220gr x4": ("Black Garlic 220gr", 4),
+    "Black Garlic 220gr x5": ("Black Garlic 220gr", 5),
+    "Black Garlic 500gr x2": ("Black Garlic 500gr", 2),
+    "Black Garlic 500gr x3": ("Black Garlic 500gr", 3),
+    "Black Garlic 500gr x4": ("Black Garlic 500gr", 4),
+    "Black Garlic 500gr x5": ("Black Garlic 500gr", 5),
+    "BG Drink Original x2": ("BG Drink Original", 2),
+    "BG Drink Original x4": ("BG Drink Original", 4),
+}
+
 
 def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
     qty_raw = to_int(qty_raw, 1) or 1
-
     nama, qty_override = lookup_sku(sku_raw, nama_produk_raw)
-
     if nama:
         qty_final = qty_override if qty_override else qty_raw
+        # Expand multi-botol: qty_raw resi x jumlah_per_SKU
+        if nama in _MULTI_BOTOL:
+            nama_base, multiplier = _MULTI_BOTOL[nama]
+            return nama_base, qty_final * multiplier
         return nama, qty_final
 
     if nama_produk_raw:
         nama2, qty_override2 = lookup_sku(nama_produk_raw, "")
         if nama2:
             qty_final = qty_override2 if qty_override2 else qty_raw
+            if nama2 in _MULTI_BOTOL:
+                nama_base, multiplier = _MULTI_BOTOL[nama2]
+                return nama_base, qty_final * multiplier
             return nama2, qty_final
 
     text = normalize_sku(f"{sku_raw} {nama_produk_raw}").upper()
@@ -449,32 +486,30 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
         return "Hampers Imlek", qty_raw
     if "HAMPERS" in text and "NATAL" in text:
         return "Hampers Natal", qty_raw
-    if "HAMPERS" in text and "HSD" in text:
-        return "Hampers HSD", qty_raw
     if "HAMPERS" in text:
         return "Hampers HSD", qty_raw
-    if "BLACK-GARLIC-HONEY" in text or "BLACK GARLIC HONEY" in text.replace("-", " "):
-        if "KURMA" in text or "BUNGA" in text:
-            return "BG Madu Kurma", qty_raw
-        return "BG Madu Multi Floral", qty_raw
     if "MULTI" in text and ("FLORAL" in text or "FLORA" in text):
         return "BG Madu Multi Floral", qty_raw
+    if ("KURMA" in text or "BUNGA" in text) and ("BGH" in text or "MADU" in text or "HONEY" in text):
+        return "BG Madu Kurma", qty_raw
     if "KURMA" in text:
+        return "BG Madu Kurma", qty_raw
+    if "HONEY" in text or "MADU" in text:
+        if "MULTI" in text or "FLORAL" in text:
+            return "BG Madu Multi Floral", qty_raw
         return "BG Madu Kurma", qty_raw
 
     m = re.search(r"BG-(100|220|500)GR-(\d+)-BOTOL", text)
     if m:
         size = m.group(1)
         jumlah = int(m.group(2))
-        if jumlah > 1:
-            return f"Black Garlic {size}gr x{jumlah}", qty_raw
-        return f"Black Garlic {size}gr", qty_raw
+        return f"Black Garlic {size}gr", qty_raw * jumlah
 
-    if "500GR" in text or "500 GR" in text:
+    if "500GR" in text or "500-GR" in text:
         return "Black Garlic 500gr", qty_raw
-    if "220GR" in text or "220 GR" in text:
+    if "220GR" in text or "220-GR" in text:
         return "Black Garlic 220gr", qty_raw
-    if "100GR" in text or "100 GR" in text:
+    if "100GR" in text or "100-GR" in text:
         return "Black Garlic 100gr", qty_raw
 
     return None, qty_raw
@@ -482,7 +517,6 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
 
 def extract_sku_candidates(text):
     text = merge_broken_lines(text)
-
     patterns = [
         r"BGH-[A-Z0-9\-]+",
         r"BLACKGARLIC-[A-Z0-9\-]+",
@@ -495,20 +529,17 @@ def extract_sku_candidates(text):
         r"BOX-HAMPERS-[A-Z0-9\-]+",
         r"BG-3IN1",
     ]
-
     found = []
     for p in patterns:
         for m in re.finditer(p, text, re.I):
             sku = normalize_sku(m.group(0))
             if sku and sku not in found:
                 found.append(sku)
-
     return found
 
 
 def build_product_row(platform, courier, layanan, resi, pesanan, penerima, alamat, pembayaran, kode, nama, sku, variasi, qty):
     nama_resolved, qty_final = resolve_nama_produk(sku, nama, qty)
-
     if nama_resolved is None:
         nama_final = clean(nama) or clean(sku) or "(cek manual)"
         sku_final = normalize_sku(sku)
@@ -538,28 +569,20 @@ def build_product_row(platform, courier, layanan, resi, pesanan, penerima, alama
     }
 
 
-# =========================
-# PARSER PRODUK PER PLATFORM
-# =========================
-
 def parse_tiktok_table(text):
     products = []
     t = merge_broken_lines(text)
-
     if "Product Name" not in t or "Seller SKU" not in t:
         return products
-
     m = re.search(
         r"Product Name\s+SKU\s+Seller SKU\s+Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|$)",
         t, re.I,
     )
     if not m:
         return products
-
     block = m.group(1)
     lines = [clean(x) for x in block.split("\n") if clean(x)]
     current_name = []
-
     for line in lines:
         mm = re.search(
             r"^(.*?)\s*(Default|ORI[\s\-]PROMO[\s\-]\d|ORIGINAL|PEACH|100[\s\-]GR|220[\s\-]GR|500[\s\-]GR)?\s+((?:BGH|BG|BLACKGARLIC|BOX)-[A-Z0-9\-]+)\s+(\d{1,3})$",
@@ -573,39 +596,24 @@ def parse_tiktok_table(text):
             name    = " ".join(current_name).strip()
             if prefix and len(prefix) > 3 and prefix.upper() not in ["DEFAULT"]:
                 name = (name + " " + prefix).strip()
-            products.append({
-                "nama_produk": name or prefix or sku,
-                "sku": sku,
-                "variasi": variasi,
-                "qty": qty,
-            })
+            products.append({"nama_produk": name or prefix or sku, "sku": sku, "variasi": variasi, "qty": qty})
             current_name = []
             continue
-
         mm2 = re.search(r"^((?:BGH|BG|BLACKGARLIC|BOX)-[A-Z0-9\-]+)\s+(\d{1,3})$", line, re.I)
         if mm2:
             sku  = normalize_sku(mm2.group(1))
             qty  = to_int(mm2.group(2), 1)
             name = " ".join(current_name).strip()
-            products.append({
-                "nama_produk": name or sku,
-                "sku": sku,
-                "variasi": "",
-                "qty": qty,
-            })
+            products.append({"nama_produk": name or sku, "sku": sku, "variasi": "", "qty": qty})
             current_name = []
             continue
-
         if not re.match(r"^\d+$", line) and len(line) > 2:
             current_name.append(line)
-
     if products:
         return products
-
     skus = extract_sku_candidates(t)
     for sku in skus:
         products.append({"nama_produk": sku, "sku": sku, "variasi": "", "qty": 1})
-
     return products
 
 
@@ -613,11 +621,17 @@ def parse_shopee_table(text):
     products = []
     t = merge_broken_lines(text)
 
-    if "# Nama Produk" not in t and "Nama Produk SKU" not in t:
+    has_header = (
+        "# Nama Produk" in t
+        or "Nama Produk SKU" in t
+        or re.search(r"#\s*\n\s*Nama Produk", t) is not None
+        or re.search(r"Nama Produk\s*\n\s*SKU", t) is not None
+    )
+    if not has_header:
         return products
 
     m = re.search(
-        r"(?:#\s*)?Nama Produk\s+SKU[\s\S]*?(?:Variasi\s+)?Qty\s*\n([\s\S]+?)(?:Pesan:|Pengirim:|CASHLESS|$)",
+        r"(?:#\s*)?Nama Produk\s+SKU[\s\S]*?(?:Variasi|Lokasi)?\s*Qty\s*\n([\s\S]+?)(?:Pesan:|Pengirim:|CASHLESS|$)",
         t, re.I,
     )
     block = m.group(1) if m else t
@@ -626,18 +640,22 @@ def parse_shopee_table(text):
     skus = extract_sku_candidates(block_text)
 
     for sku in skus:
-        qty = 1
-        token_text = normalize_sku(block_text)
-        pos = token_text.find(sku)
-        if pos >= 0:
-            tail = token_text[pos + len(sku): pos + len(sku) + 40]
-            nums = [int(n) for n in re.findall(r"\b(\d{1,2})\b", tail) if 1 <= int(n) <= 20]
-            if nums:
-                qty = nums[0]
+        ccqty_m = re.search(r"__CCQTY(\d+)__", block_text)
+        if ccqty_m:
+            qty = to_int(ccqty_m.group(1), 1)
+        else:
+            qty = 1
+            token_text = normalize_sku(block_text)
+            pos = token_text.find(sku)
+            if pos >= 0:
+                tail = token_text[pos + len(sku): pos + len(sku) + 40]
+                nums = [int(n) for n in re.findall(r"\b(\d{1,2})\b", tail) if 1 <= int(n) <= 20]
+                if nums:
+                    qty = nums[0]
 
         name = ""
         for line in lines:
-            if "BG-" in normalize_sku(line) or "BGH-" in normalize_sku(line):
+            if "BG-" in normalize_sku(line) or "BGH-" in normalize_sku(line) or "__CCQTY" in line:
                 break
             if not re.match(r"^\d+$", line):
                 name += " " + line
@@ -650,10 +668,8 @@ def parse_shopee_table(text):
 def parse_lazada_table(text):
     products = []
     t = merge_broken_lines(text)
-
     if "LAZADA" not in t.upper() and "LXAD" not in t.upper():
         return products
-
     m = re.search(
         r"Nama Produk\s+Qty\s+SKU\s+Item Variant\s*\n([\s\S]+?)(?:Pengirim:|Penerima:|$)",
         t, re.I,
@@ -667,17 +683,14 @@ def parse_lazada_table(text):
             if mq:
                 qty = to_int(mq.group(1), 1)
             products.append({"nama_produk": block, "sku": sku, "variasi": "", "qty": qty})
-
     return products
 
 
 def parse_blibli_table(text):
     products = []
     t = merge_broken_lines(text)
-
     if "BLIBLI" not in t.upper():
         return products
-
     skus = extract_sku_candidates(t)
     for sku in skus:
         qty = 1
@@ -689,7 +702,6 @@ def parse_blibli_table(text):
             if nums:
                 qty = to_int(nums[0], 1)
         products.append({"nama_produk": sku, "sku": sku, "variasi": "", "qty": qty})
-
     return products
 
 
@@ -697,7 +709,6 @@ def parse_generic_products(text):
     products = []
     t = merge_broken_lines(text)
     skus = extract_sku_candidates(t)
-
     for sku in skus:
         qty = 1
         token_text = normalize_sku(t)
@@ -708,23 +719,15 @@ def parse_generic_products(text):
             if nums:
                 qty = to_int(nums[0], 1)
         products.append({"nama_produk": sku, "sku": sku, "variasi": "", "qty": qty})
-
     return products
 
 
-# =========================
-# PAGE PARSER
-# =========================
-
 def parse_page(text):
     text = merge_broken_lines(text or "")
-
     platform, courier, layanan = detect(text)
     resi = get_resi(text)
-
     if not resi:
         return []
-
     pesanan = get_pesanan(text)
     penerima = get_penerima(text)
     alamat = get_alamat(text)
@@ -732,57 +735,35 @@ def parse_page(text):
     kode = get_kode_pengambilan(text)
 
     product_candidates = parse_shopee_table(text)
-
     if not product_candidates:
         product_candidates = parse_lazada_table(text)
-
     if not product_candidates:
         product_candidates = parse_blibli_table(text)
-
     if not product_candidates:
         product_candidates = parse_tiktok_table(text)
-
     if not product_candidates:
         product_candidates = parse_generic_products(text)
-
     if not product_candidates:
-        product_candidates = [{
-            "nama_produk": "(cek manual)",
-            "sku": "(cek manual)",
-            "variasi": "",
-            "qty": 1,
-        }]
+        product_candidates = [{"nama_produk": "(cek manual)", "sku": "(cek manual)", "variasi": "", "qty": 1}]
 
     rows = []
     for p in product_candidates:
         rows.append(build_product_row(
-            platform=platform,
-            courier=courier,
-            layanan=layanan,
-            resi=resi,
-            pesanan=pesanan,
-            penerima=penerima,
-            alamat=alamat,
-            pembayaran=pembayaran,
-            kode=kode,
-            nama=p.get("nama_produk", ""),
-            sku=p.get("sku", ""),
-            variasi=p.get("variasi", ""),
-            qty=p.get("qty", 1),
+            platform=platform, courier=courier, layanan=layanan,
+            resi=resi, pesanan=pesanan, penerima=penerima, alamat=alamat,
+            pembayaran=pembayaran, kode=kode,
+            nama=p.get("nama_produk", ""), sku=p.get("sku", ""),
+            variasi=p.get("variasi", ""), qty=p.get("qty", 1),
         ))
-
     return rows
 
 
-# =========================
-# MAIN PROCESS PDF
-# =========================
-
 def _has_sku_in_text(text):
-    return bool(re.search(
-        r"BG-(?:100|220|500)GR|BGH-|BG-DRINK|BG-3IN1|BOX-HAMPERS|BLACKGARLIC-|BG-84GR",
-        text, re.I
-    ))
+    if re.search(r"BG-(?:100|220|500)GR|BGH-|BG-DRINK|BG-3IN1|BOX-HAMPERS|BLACKGARLIC-|BG-84GR", text, re.I):
+        return True
+    if re.search(r"BG-\s+(?:100|220|500)\s*GR", text, re.I):
+        return True
+    return False
 
 
 def process_pdf(pdf_path, progress_callback=None):
@@ -793,12 +774,11 @@ def process_pdf(pdf_path, progress_callback=None):
     with pdfplumber.open(pdf_path) as pdf:
         total = len(pdf.pages)
         i = 0
-
         while i < total:
             try:
                 text = pdf.pages[i].extract_text() or ""
-
                 resi = get_resi(text)
+
                 if resi and not _has_sku_in_text(text) and i + 1 < total:
                     next_text = pdf.pages[i + 1].extract_text() or ""
                     if _has_sku_in_text(next_text):
@@ -808,14 +788,8 @@ def process_pdf(pdf_path, progress_callback=None):
                         i += 1
 
                 page_rows = parse_page(text)
-
                 for r in page_rows:
-                    key = (
-                        r.get("no_resi", ""),
-                        r.get("sku", ""),
-                        r.get("nama_produk", ""),
-                        str(r.get("qty", "")),
-                    )
+                    key = (r.get("no_resi", ""), r.get("sku", ""), r.get("nama_produk", ""), str(r.get("qty", "")))
                     if key not in seen:
                         seen.add(key)
                         all_rows.append(r)
@@ -825,7 +799,6 @@ def process_pdf(pdf_path, progress_callback=None):
 
             if progress_callback:
                 progress_callback(i + 1, total)
-
             i += 1
 
     return all_rows, errors
