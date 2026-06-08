@@ -4,21 +4,11 @@ from pathlib import Path
 
 import streamlit as st
 
-# Timezone: gunakan pytz sebagai fallback agar aman di semua platform
-try:
-    from zoneinfo import ZoneInfo
-    _TZ = ZoneInfo("Asia/Jakarta")
-    def now_wib() -> datetime.datetime:
-        return datetime.datetime.now(_TZ)
-except Exception:
-    try:
-        import pytz
-        _TZ = pytz.timezone("Asia/Jakarta")
-        def now_wib() -> datetime.datetime:
-            return datetime.datetime.now(_TZ)
-    except Exception:
-        def now_wib() -> datetime.datetime:
-            return datetime.datetime.utcnow() + datetime.timedelta(hours=7)
+# Timezone WIB = UTC+7, pakai fixed offset - tidak butuh tzdata/pytz
+_WIB = datetime.timezone(datetime.timedelta(hours=7))
+
+def now_wib() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc).astimezone(_WIB)
 
 
 # =========================
