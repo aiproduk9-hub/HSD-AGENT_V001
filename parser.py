@@ -680,13 +680,20 @@ def parse_shopee_table(text):
             if ccqty_m:
                 qty = to_int(ccqty_m.group(1), 1)
             else:
-                token_text = normalize_sku(block_text)
-                pos = token_text.find(sku)
-                if pos >= 0:
-                    tail = token_text[pos + len(sku): pos + len(sku) + 40]
-                    nums = [int(n) for n in re.findall(r"\b(\d{1,2})\b", tail) if 1 <= int(n) <= 20]
-                    if nums:
-                        qty = nums[0]
+                qty = 0
+                sku_regex = re.escape(sku).replace(r"\-", r"[\s\-]*").replace("-", r"[\s\-]*")
+                for line in lines:
+                    m_sku = re.search(sku_regex, line, re.I)
+                    if m_sku:
+                        tail_line = line[m_sku.end():]
+                        tail_clean = re.sub(r"(100|220|500|84)\s*GR", "", tail_line, flags=re.I)
+                        nums = re.findall(r"\b(\d{1,4})\b", tail_clean)
+                        if nums:
+                            qty += int(nums[-1])
+                        else:
+                            qty += 1
+                if qty == 0:
+                    qty = 1
         else:
             # Fallback: SKU tidak ditemukan per posisi, coba CCQTY generic
             ccqty_m = re.search(r"__CCQTY(\d+)__", block_text)
