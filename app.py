@@ -4,7 +4,6 @@ from pathlib import Path
 
 import streamlit as st
 
-# Timezone WIB = UTC+7, pakai fixed offset - tidak butuh tzdata/pytz
 _WIB = datetime.timezone(datetime.timedelta(hours=7))
 
 def now_wib() -> datetime.datetime:
@@ -54,18 +53,21 @@ ROLES = {
 
 DIVISIONS = ["Gudang", "Konten", "Live"]
 
-# Label, akun (brand), shift
 UPLOAD_GROUPS = [
-    ("HSD Jakarta Pagi",    "HSD Jakarta",    "Pagi"),
-    ("HSD Jakarta Siang",   "HSD Jakarta",    "Siang"),
-    ("HSD Jakarta Sore",    "HSD Jakarta",    "Sore"),
-    ("HSD Surabaya Pagi",   "HSD Surabaya",   "Pagi"),
-    ("HSD Surabaya Siang",  "HSD Surabaya",   "Siang"),
-    ("HSD Surabaya Sore",   "HSD Surabaya",   "Sore"),
-    ("HSS Pagi",            "HSS",            "Pagi"),
-    ("HSS Siang",           "HSS",            "Siang"),
-    ("HSS Sore",            "HSS",            "Sore"),
+    ("HSD Jakarta Pagi",   "HSD Jakarta",  "Pagi"),
+    ("HSD Jakarta Siang",  "HSD Jakarta",  "Siang"),
+    ("HSD Jakarta Sore",   "HSD Jakarta",  "Sore"),
+    ("HSD Surabaya Pagi",  "HSD Surabaya", "Pagi"),
+    ("HSD Surabaya Siang", "HSD Surabaya", "Siang"),
+    ("HSD Surabaya Sore",  "HSD Surabaya", "Sore"),
+    ("HSS Pagi",           "HSS",          "Pagi"),
+    ("HSS Siang",          "HSS",          "Siang"),
+    ("HSS Sore",           "HSS",          "Sore"),
 ]
+
+# Batas ukuran PDF — di atas ini akan di-split otomatis
+PDF_SPLIT_THRESHOLD_MB = 10
+PDF_TARGET_PAGES       = 300   # target halaman per bagian
 
 
 # =========================
@@ -292,6 +294,17 @@ st.markdown(
         margin-bottom: 8px;
         margin-top: 4px;
     }
+
+    .split-info-box {
+        background: #FFF7ED;
+        border: 1px solid #FED7AA;
+        border-radius: 14px;
+        padding: 12px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #9A3412;
+        margin-top: 6px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -321,6 +334,103 @@ if "last_excel_filename" not in st.session_state:
 
 
 # =========================
+# AUTO SPLIT LARGE PDF
+# =========================
+def auto_split_large_pdfs(saved_files: list, status_writer=None) -> list:
+    """
+    Cek setiap file di saved_files.
+    Kalau ukurannya > PDF_SPLIT_THRESHOLD_MB, pecah jadi beberapa bagian kecil.
+    Kembalikan list saved_files yang sudah di-expand (file kecil menggantikan file besar).
+    File normal (<= threshold) dikembalikan apa adanya.
+    """
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        # Fallback: pypdf tidak tersedia, lewati split
+        if status_writer:
+            status_writer("⚠️ pypdf tidak tersedia, PDF besar diproses langsung.")
+        return saved_files
+
+    result = []
+    temp_dir = Path(tempfile.mkdtemp(prefix="hsd_split_"))
+
+    for item in saved_files:
+        file_path = Path(item["path"])
+        file_size_mb = file_path.stat().st_size / (1024 * 1024)
+
+        # File normal — langsung masuk result tanpa diubah
+        if file_size_mb <= PDF_SPLIT_THRESHOLD_MB:
+            result.append(item)
+            continue
+
+        # File besar — perlu di-split
+        if status_writer:
+            status_writer(
+                f"📦 PDF besar terdeteksi: **{item['filename']}** "
+                f"({file_size_mb:.1f} MB) — sedang dioptimalkan..."
+            )
+
+        try:
+            reader     = PdfReader(str(file_path))
+            total_pages = len(reader.pages)
+
+            # Hitung jumlah halaman per bagian
+            # Target: sekitar PDF_TARGET_PAGES per bagian
+            pages_per_part = max(PDF_TARGET_PAGES, 1)
+            total_parts    = (total_pages + pages_per_part - 1) // pages_per_part
+
+            base_name = file_path.stem  # nama tanpa .pdf
+
+            for part_idx in range(total_parts):
+                start_page = part_idx * pages_per_part
+                end_page   = min(start_page + pages_per_part, total_pages)
+
+                if status_writer:
+                    status_writer(
+                        f"✂️ Memotong **{item['filename']}** — "
+                        f"Bagian {part_idx + 1}/{total_parts} "
+                        f"(hal {start_page + 1}–{end_page} dari {total_pages})"
+                    )
+
+                writer = PdfWriter()
+                for page_num in range(start_page, end_page):
+                    writer.add_page(reader.pages[page_num])
+
+                part_filename = f"{base_name}_part_{part_idx + 1}.pdf"
+                part_path     = temp_dir / part_filename
+
+                with open(str(part_path), "wb") as f:
+                    writer.write(f)
+
+                part_size_mb = part_path.stat().st_size / (1024 * 1024)
+
+                result.append({
+                    "path":      str(part_path),
+                    "filename":  part_filename,
+                    "brand":     item["brand"],
+                    "akun":      item["akun"],
+                    "shift":     item["shift"],
+                    "group":     item["group"],
+                    "split_from": item["filename"],
+                    "part":      f"{part_idx + 1}/{total_parts}",
+                })
+
+            if status_writer:
+                status_writer(
+                    f"✅ **{item['filename']}** berhasil dipotong jadi "
+                    f"{total_parts} bagian ({total_pages} halaman total)"
+                )
+
+        except Exception as e:
+            # Kalau split gagal, pakai file asli saja
+            if status_writer:
+                status_writer(f"⚠️ Split gagal untuk {item['filename']}: {e} — diproses langsung.")
+            result.append(item)
+
+    return result
+
+
+# =========================
 # HELPERS
 # =========================
 def save_uploaded_files(upload_map: dict) -> list:
@@ -337,16 +447,14 @@ def save_uploaded_files(upload_map: dict) -> list:
             file_path = temp_dir / safe_name
             file_path.write_bytes(uploaded.getbuffer())
 
-            saved.append(
-                {
-                    "path": str(file_path),
-                    "filename": uploaded.name,
-                    "brand": brand,
-                    "akun": brand,
-                    "shift": shift,
-                    "group": group_name,
-                }
-            )
+            saved.append({
+                "path":     str(file_path),
+                "filename": uploaded.name,
+                "brand":    brand,
+                "akun":     brand,
+                "shift":    shift,
+                "group":    group_name,
+            })
 
     return saved
 
@@ -358,13 +466,17 @@ def call_parser(saved_files: list, progress_bar=None, status_text=None):
     if not hasattr(hsd_parser, "process_pdf") or not callable(hsd_parser.process_pdf):
         raise RuntimeError("parser.py harus punya function process_pdf(pdf_path, progress_callback=None).")
 
-    all_rows = []
+    all_rows   = []
     all_errors = []
     total_files = len(saved_files)
 
     for file_idx, item in enumerate(saved_files, 1):
+        label = item["filename"]
+        if item.get("split_from"):
+            label = f"{item['split_from']} (bagian {item.get('part', file_idx)})"
+
         if status_text:
-            status_text.info(f"📄 Membaca PDF {file_idx} dari {total_files}: {item['filename']}")
+            status_text.info(f"📄 Membaca PDF {file_idx}/{total_files}: {label}")
 
         def page_progress(page_done, page_total, _idx=file_idx):
             if progress_bar and page_total:
@@ -373,7 +485,7 @@ def call_parser(saved_files: list, progress_bar=None, status_text=None):
 
         result = hsd_parser.process_pdf(item["path"], progress_callback=page_progress)
 
-        rows = []
+        rows   = []
         errors = []
 
         if isinstance(result, tuple):
@@ -395,7 +507,7 @@ def call_parser(saved_files: list, progress_bar=None, status_text=None):
             all_rows.append(row)
 
         for err in errors:
-            all_errors.append(f"{item['filename']} - {err}")
+            all_errors.append(f"{label} - {err}")
 
     if progress_bar:
         progress_bar.progress(1.0)
@@ -410,13 +522,8 @@ def call_excel_writer(parsed_data, saved_files: list) -> bytes:
     output_path = Path(tempfile.mkdtemp(prefix="hsd_excel_")) / "rekap_resi_hsd.xlsx"
 
     candidate_names = [
-        "write_excel",
-        "write_excel_multi",
-        "create_excel",
-        "generate_excel",
-        "build_excel",
-        "make_excel",
-        "export_excel",
+        "write_excel", "write_excel_multi", "create_excel",
+        "generate_excel", "build_excel", "make_excel", "export_excel",
     ]
 
     last_error = None
@@ -433,14 +540,12 @@ def call_excel_writer(parsed_data, saved_files: list) -> bytes:
         ]:
             try:
                 result = fn(*args)
-
                 if isinstance(result, bytes):
                     return result
                 if isinstance(result, (str, Path)) and Path(result).exists():
                     return Path(result).read_bytes()
                 if output_path.exists():
                     return output_path.read_bytes()
-
             except TypeError as e:
                 last_error = e
                 continue
@@ -478,7 +583,6 @@ def login_page():
     with middle:
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-        # Logo HSD jika ada, fallback ke emoji
         logo_path = Path("HSD-Logo1.png")
         if logo_path.exists():
             st.image(str(logo_path), width=120)
@@ -524,7 +628,6 @@ def login_page():
 # =========================
 def render_sidebar():
     with st.sidebar:
-        # Logo di sidebar jika ada
         logo_path = Path("HSD-Logo1.png")
         if logo_path.exists():
             st.image(str(logo_path), width=100)
@@ -606,6 +709,7 @@ def gudang_page():
             <div style="font-size:20px; font-weight:900; color:#111827; margin-top:12px;">Upload PDF Resi</div>
             <div class="small-muted">
                 Upload sesuai brand, cabang, dan shift. Bisa upload lebih dari satu file di setiap bagian.<br>
+                PDF besar (&gt;10 MB) akan dipotong otomatis — tidak perlu split manual.<br>
                 <b>Order offline tidak masuk sistem</b> — isi manual di Excel setelah download.
             </div>
         </div>
@@ -615,48 +719,60 @@ def gudang_page():
 
     upload_map = {}
 
-    # 3 kolom: HSD Jakarta | HSD Surabaya | HSS
     col_jkt, col_sby, col_hss = st.columns(3)
 
     with col_jkt:
         st.markdown("<div class='upload-section-header'>🏙️ HSD Jakarta</div>", unsafe_allow_html=True)
-        for label, brand, shift in UPLOAD_GROUPS[:3]:   # indeks 0-2
+        for label, brand, shift in UPLOAD_GROUPS[:3]:
             files = st.file_uploader(
-                label,
-                type=["pdf"],
-                accept_multiple_files=True,
+                label, type=["pdf"], accept_multiple_files=True,
                 key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
             )
             upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
     with col_sby:
         st.markdown("<div class='upload-section-header'>🌊 HSD Surabaya</div>", unsafe_allow_html=True)
-        for label, brand, shift in UPLOAD_GROUPS[3:6]:  # indeks 3-5
+        for label, brand, shift in UPLOAD_GROUPS[3:6]:
             files = st.file_uploader(
-                label,
-                type=["pdf"],
-                accept_multiple_files=True,
+                label, type=["pdf"], accept_multiple_files=True,
                 key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
             )
             upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
     with col_hss:
         st.markdown("<div class='upload-section-header'>⭐ HSS</div>", unsafe_allow_html=True)
-        for label, brand, shift in UPLOAD_GROUPS[6:]:   # indeks 6-8
+        for label, brand, shift in UPLOAD_GROUPS[6:]:
             files = st.file_uploader(
-                label,
-                type=["pdf"],
-                accept_multiple_files=True,
+                label, type=["pdf"], accept_multiple_files=True,
                 key=f"upload_{brand}_{shift}_{st.session_state.upload_reset_counter}",
             )
             upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
-    total_files = sum(len(payload["files"] or []) for payload in upload_map.values())
+    # Hitung total & info ukuran file
+    total_files    = sum(len(p["files"] or []) for p in upload_map.values())
+    large_files    = []
+    for payload in upload_map.values():
+        for f in (payload["files"] or []):
+            size_mb = len(f.getbuffer()) / (1024 * 1024)
+            if size_mb > PDF_SPLIT_THRESHOLD_MB:
+                large_files.append((f.name, size_mb))
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     if total_files > 0:
         st.success(f"✅ Total file terupload: {total_files} PDF. Siap diproses.")
+        if large_files:
+            info_lines = "".join(
+                f"<li>{name} ({size:.1f} MB) → akan dipotong otomatis</li>"
+                for name, size in large_files
+            )
+            st.markdown(
+                f"""<div class="split-info-box">
+                    ✂️ <b>{len(large_files)} PDF besar terdeteksi</b> — akan dioptimalkan sebelum diproses:<br>
+                    <ul style="margin:6px 0 0 0;">{info_lines}</ul>
+                </div>""",
+                unsafe_allow_html=True,
+            )
     else:
         st.info("Belum ada PDF terupload.")
 
@@ -675,7 +791,7 @@ def gudang_page():
 
     if reset_upload:
         st.session_state.upload_reset_counter += 1
-        st.session_state.last_excel_bytes = None
+        st.session_state.last_excel_bytes    = None
         st.session_state.last_excel_filename = None
         st.success("Upload sudah dikosongkan. Silakan masukkan PDF baru.")
         st.rerun()
@@ -685,7 +801,7 @@ def gudang_page():
             st.warning("Upload minimal 1 file PDF dulu.")
             return
 
-        st.session_state.last_excel_bytes = None
+        st.session_state.last_excel_bytes    = None
         st.session_state.last_excel_filename = None
 
         try:
@@ -693,10 +809,32 @@ def gudang_page():
             status_text  = st.empty()
 
             with st.status("⏳ Memproses PDF menjadi Excel...", expanded=True) as status:
+
+                # STEP 1: Simpan file
                 st.write("📥 Menyimpan file sementara...")
                 saved_files = save_uploaded_files(upload_map)
+                st.write(f"📄 Total PDF terupload: {len(saved_files)}")
 
-                st.write(f"📄 Total PDF yang akan diproses: {len(saved_files)}")
+                # STEP 2: Auto-split PDF besar
+                has_large = any(
+                    Path(item["path"]).stat().st_size / (1024 * 1024) > PDF_SPLIT_THRESHOLD_MB
+                    for item in saved_files
+                )
+
+                if has_large:
+                    st.write("✂️ Mengoptimalkan PDF besar...")
+                    split_log = st.empty()
+
+                    def split_status(msg):
+                        split_log.info(msg)
+
+                    saved_files = auto_split_large_pdfs(saved_files, status_writer=split_status)
+                    split_log.success(
+                        f"✅ Optimasi selesai. Total bagian PDF siap diproses: {len(saved_files)}"
+                    )
+
+                # STEP 3: Parser
+                st.write(f"📄 Memulai proses parser ({len(saved_files)} PDF)...")
                 parsed_data, parse_errors = call_parser(
                     saved_files,
                     progress_bar=progress_bar,
@@ -704,14 +842,15 @@ def gudang_page():
                 )
 
                 parsed_count = len(parsed_data) if hasattr(parsed_data, "__len__") else "-"
-                st.write(f"✅ Data produk/resi terbaca: {parsed_count} baris")
+                st.write(f"✅ Data terbaca: {parsed_count} baris")
 
                 if parse_errors:
-                    st.warning(f"Ada {len(parse_errors)} catatan parser. Tetap dibuatkan Excel agar bisa dicek.")
+                    st.warning(f"Ada {len(parse_errors)} catatan parser.")
                     with st.expander("Lihat catatan parser"):
                         for err in parse_errors[:200]:
                             st.write(err)
 
+                # STEP 4: Excel
                 status_text.info("📊 Membuat file Excel...")
                 st.write("📊 Membuat Excel rekap...")
                 excel_bytes = call_excel_writer(parsed_data, saved_files)
