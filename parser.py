@@ -85,10 +85,16 @@ def _build_sku_lookup():
     add(["BG-DRINK-PEACH-7-BOTOL", "BG-Drink-Peach-7-Botol"], "BG Drink Peach 7 Botol")
     add(["BG-DRINK-MIX-7-BOTOL", "BG-Drink-Mix-7-Botol"], "BG Drink Mix 7 Botol")
 
+    # FIX: tambah BGH-MULTI-FL, BGH-MULTI-FLORA, dan variasi singkatan lainnya
     add(["BGH-MULTI-FLORAL-1-BOTOL", "BGH-MULTI-FLORAL", "MADU-MULTI-FLORAL",
-         "BGH-MULTI", "BGH-MULTI-1-BOTOL"], "BG Madu Multi Floral")
+         "BGH-MULTI", "BGH-MULTI-1-BOTOL",
+         "BGH-MULTI-FL", "BGH-MULTI-FL-1-BOTOL",
+         "BGH-MULTI-FLORA", "BGH-MULTI-FLORA-1-BOTOL"], "BG Madu Multi Floral")
+    # FIX: tambah BGH-BNG-KURMA sebagai variasi singkatan Bunga Kurma
     add(["BGH-BUNGA-KURMA-1-BOTOL", "BGH-BUNGA-KURMA", "MADU-BUNGA-KURMA",
-         "BGH-BUNGA", "BGH-BUNGA-1-BOTOL"], "BG Madu Kurma")
+         "BGH-BUNGA", "BGH-BUNGA-1-BOTOL",
+         "BGH-BNG-KURMA", "BGH-BNG-KURMA-1-BOTOL",
+         "BGH-KURMA", "BGH-KURMA-1-BOTOL"], "BG Madu Kurma")
     add(["BLACKGARLIC-LANANG-HSD-100G", "BLACKGARLIC-LANANG-BAWANG-HSD-100G", "BLACKGARLIC-HSD-100G"], "Black Garlic 100gr")
 
     return m
@@ -189,6 +195,12 @@ def merge_broken_lines(text):
     text = re.sub(
         r"BGH-\s+MULTI\s+FLORAL\s+(\d+)\n[^\n]*FLORAL-\n[^\n]*\d+-BOTOL",
         lambda m: f"BGH-MULTI-FLORAL-1-BOTOL __CCQTY{m.group(1)}__",
+        text, flags=re.I
+    )
+    # POLA 3b: BGH- MULTI FL QTY \n ... FL- \n N-BOTOL  (versi singkatan)
+    text = re.sub(
+        r"BGH-\s+MULTI\s+FL\s+(\d+)\n[^\n]*FL-\n[^\n]*\d+-BOTOL",
+        lambda m: f"BGH-MULTI-FL-1-BOTOL __CCQTY{m.group(1)}__",
         text, flags=re.I
     )
     # POLA 4: BG- 500GR QTY \n ... 500GR- \n SKU
@@ -488,7 +500,10 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
         return "Hampers Natal", qty_raw
     if "HAMPERS" in text:
         return "Hampers HSD", qty_raw
-    if "MULTI" in text and ("FLORAL" in text or "FLORA" in text):
+    # FIX: tambah pengecekan -FL sebagai singkatan FLORAL
+    if "MULTI" in text and ("FLORAL" in text or "FLORA" in text or
+                             text.endswith("-FL") or "-FL-" in text or
+                             text.endswith("FL")):
         return "BG Madu Multi Floral", qty_raw
     if ("KURMA" in text or "BUNGA" in text) and ("BGH" in text or "MADU" in text or "HONEY" in text):
         return "BG Madu Kurma", qty_raw
