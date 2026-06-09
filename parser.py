@@ -543,6 +543,8 @@ def extract_sku_candidates(text):
         r"BG-84GR-[A-Z0-9\-]+",
         r"BOX-HAMPERS-[A-Z0-9\-]+",
         r"BG-3IN1",
+        r"BG-3-IN-1",
+        r"MADU-[A-Z0-9\-]+",
     ]
     found = []
     for p in patterns:
@@ -587,12 +589,22 @@ def build_product_row(platform, courier, layanan, resi, pesanan, penerima, alama
 def parse_tiktok_table(text):
     products = []
     t = merge_broken_lines(text)
-    if "Product Name" not in t or "Seller SKU" not in t:
+    has_tiktok_header = "Product Name" in t and "Seller SKU" in t
+    if not has_tiktok_header:
+        # Fallback: cek format alternatif TikTok
+        has_tiktok_header = ("Product Name" in t or "Nama Produk" in t) and re.search(r"(?:Order\s*ID|TT\s*Order)", t, re.I) is not None
+    if not has_tiktok_header:
         return products
     m = re.search(
         r"Product Name\s+SKU\s+Seller SKU\s+Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|$)",
         t, re.I,
     )
+    if not m:
+        # Coba format alternatif
+        m = re.search(
+            r"(?:Product Name|Nama Produk)\s+SKU\s+(?:Seller SKU\s+)?Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|Total:|$)",
+            t, re.I,
+        )
     if not m:
         return products
     block = m.group(1)
@@ -655,18 +667,31 @@ def parse_shopee_table(text):
     skus = extract_sku_candidates(block_text)
 
     for sku in skus:
-        ccqty_m = re.search(r"__CCQTY(\d+)__", block_text)
-        if ccqty_m:
-            qty = to_int(ccqty_m.group(1), 1)
+        qty = 1
+        # FIX: cari __CCQTY__ yang terkait dengan SKU ini, bukan yang pertama di blok
+        sku_upper = sku.upper()
+        block_upper = block_text.upper()
+        sku_pos = block_upper.find(sku_upper)
+
+        if sku_pos >= 0:
+            # Cari CCQTY dalam 200 karakter setelah SKU ini
+            after_sku = block_text[sku_pos:sku_pos + 200]
+            ccqty_m = re.search(r"__CCQTY(\d+)__", after_sku)
+            if ccqty_m:
+                qty = to_int(ccqty_m.group(1), 1)
+            else:
+                token_text = normalize_sku(block_text)
+                pos = token_text.find(sku)
+                if pos >= 0:
+                    tail = token_text[pos + len(sku): pos + len(sku) + 40]
+                    nums = [int(n) for n in re.findall(r"\b(\d{1,2})\b", tail) if 1 <= int(n) <= 20]
+                    if nums:
+                        qty = nums[0]
         else:
-            qty = 1
-            token_text = normalize_sku(block_text)
-            pos = token_text.find(sku)
-            if pos >= 0:
-                tail = token_text[pos + len(sku): pos + len(sku) + 40]
-                nums = [int(n) for n in re.findall(r"\b(\d{1,2})\b", tail) if 1 <= int(n) <= 20]
-                if nums:
-                    qty = nums[0]
+            # Fallback: SKU tidak ditemukan per posisi, coba CCQTY generic
+            ccqty_m = re.search(r"__CCQTY(\d+)__", block_text)
+            if ccqty_m:
+                qty = to_int(ccqty_m.group(1), 1)
 
         name = ""
         for line in lines:
@@ -774,9 +799,25 @@ def parse_page(text):
 
 
 def _has_sku_in_text(text):
-    if re.search(r"BG-(?:100|220|500)GR|BGH-|BG-DRINK|BG-3IN1|BOX-HAMPERS|BLACKGARLIC-|BG-84GR", text, re.I):
+    # FIX: tambah MADU- prefix untuk deteksi SKU madu
+    if re.search(r"BG-(?:100|220|500)GR|BGH-|BG-DRINK|BG-3IN1|BG-3-IN-1|BOX-HAMPERS|BLACKGARLIC-|BG-84GR|MADU-(?:MULTI|BUNGA)", text, re.I):
         return True
     if re.search(r"BG-\s+(?:100|220|500)\s*GR", text, re.I):
+        return True
+    return False
+
+
+def _is_product_continuation(text):
+    """Cek apakah halaman ini adalah lanjutan tabel produk (tidak punya resi sendiri)."""
+    if _has_sku_in_text(text):
+        return True
+    t = text.upper()
+    # Keyword tabel produk yang menandakan halaman lanjutan
+    continuation_keywords = [
+        "QTY TOTAL", "TOTAL QTY", "NAMA PRODUK", "PRODUCT NAME",
+        "SELLER SKU", "BOTOL", "VARIASI", "ITEM VARIANT",
+    ]
+    if any(kw in t for kw in continuation_keywords):
         return True
     return False
 
@@ -794,26 +835,47 @@ def process_pdf(pdf_path, progress_callback=None):
                 text = pdf.pages[i].extract_text() or ""
                 resi = get_resi(text)
 
-                if resi and not _has_sku_in_text(text) and i + 1 < total:
-                    next_text = pdf.pages[i + 1].extract_text() or ""
-                    if _has_sku_in_text(next_text):
+                if not resi:
+                    # Halaman tanpa resi — skip (kemungkinan sudah di-merge sebelumnya)
+                    if progress_callback:
+                        progress_callback(i + 1, total)
+                    i += 1
+                    continue
+
+                # FIX: Look ahead — merge halaman lanjutan yang tidak punya resi sendiri
+                # Support sampai 4 halaman per order (sebelumnya cuma 2)
+                last_merged = i
+                for j in range(i + 1, min(i + 5, total)):
+                    next_text = pdf.pages[j].extract_text() or ""
+                    next_resi = get_resi(next_text)
+                    if next_resi:
+                        break  # Halaman ini adalah order baru
+                    if _is_product_continuation(next_text):
                         text = text + "\n" + next_text
+                        last_merged = j
                         if progress_callback:
-                            progress_callback(i + 1, total)
-                        i += 1
+                            progress_callback(j + 1, total)
+                    else:
+                        break
 
                 page_rows = parse_page(text)
                 for r in page_rows:
-                    key = (r.get("no_resi", ""), r.get("sku", ""), r.get("nama_produk", ""), str(r.get("qty", "")))
+                    resi_val = r.get("no_resi", "")
+                    if not resi_val:
+                        continue  # FIX: skip row tanpa resi agar dedup tidak clash
+                    key = (resi_val, r.get("sku", ""), r.get("nama_produk", ""), str(r.get("qty", "")))
                     if key not in seen:
                         seen.add(key)
                         all_rows.append(r)
 
+                if progress_callback:
+                    progress_callback(i + 1, total)
+                i = last_merged + 1  # Lompat ke halaman setelah yang terakhir di-merge
+
             except Exception as e:
                 errors.append(f"Halaman {i + 1}: {e}")
-
-            if progress_callback:
-                progress_callback(i + 1, total)
-            i += 1
+                if progress_callback:
+                    progress_callback(i + 1, total)
+                i += 1
 
     return all_rows, errors
