@@ -1,3 +1,4 @@
+import base64
 import datetime
 import tempfile
 from pathlib import Path
@@ -65,9 +66,19 @@ UPLOAD_GROUPS = [
     ("HSS Sore",           "HSS",          "Sore"),
 ]
 
-# Batas ukuran PDF — di atas ini akan di-split otomatis
 PDF_SPLIT_THRESHOLD_MB = 10
-PDF_TARGET_PAGES       = 300   # target halaman per bagian
+PDF_TARGET_PAGES       = 300
+
+
+# =========================
+# LOGO HELPER
+# =========================
+def get_logo_b64() -> str | None:
+    logo_path = Path("HSD-Logo1.png")
+    if logo_path.exists():
+        with open(str(logo_path), "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    return None
 
 
 # =========================
@@ -337,16 +348,9 @@ if "last_excel_filename" not in st.session_state:
 # AUTO SPLIT LARGE PDF
 # =========================
 def auto_split_large_pdfs(saved_files: list, status_writer=None) -> list:
-    """
-    Cek setiap file di saved_files.
-    Kalau ukurannya > PDF_SPLIT_THRESHOLD_MB, pecah jadi beberapa bagian kecil.
-    Kembalikan list saved_files yang sudah di-expand (file kecil menggantikan file besar).
-    File normal (<= threshold) dikembalikan apa adanya.
-    """
     try:
         from pypdf import PdfReader, PdfWriter
     except ImportError:
-        # Fallback: pypdf tidak tersedia, lewati split
         if status_writer:
             status_writer("⚠️ pypdf tidak tersedia, PDF besar diproses langsung.")
         return saved_files
@@ -358,12 +362,10 @@ def auto_split_large_pdfs(saved_files: list, status_writer=None) -> list:
         file_path = Path(item["path"])
         file_size_mb = file_path.stat().st_size / (1024 * 1024)
 
-        # File normal — langsung masuk result tanpa diubah
         if file_size_mb <= PDF_SPLIT_THRESHOLD_MB:
             result.append(item)
             continue
 
-        # File besar — perlu di-split
         if status_writer:
             status_writer(
                 f"📦 PDF besar terdeteksi: **{item['filename']}** "
@@ -371,15 +373,11 @@ def auto_split_large_pdfs(saved_files: list, status_writer=None) -> list:
             )
 
         try:
-            reader     = PdfReader(str(file_path))
+            reader      = PdfReader(str(file_path))
             total_pages = len(reader.pages)
-
-            # Hitung jumlah halaman per bagian
-            # Target: sekitar PDF_TARGET_PAGES per bagian
             pages_per_part = max(PDF_TARGET_PAGES, 1)
             total_parts    = (total_pages + pages_per_part - 1) // pages_per_part
-
-            base_name = file_path.stem  # nama tanpa .pdf
+            base_name      = file_path.stem
 
             for part_idx in range(total_parts):
                 start_page = part_idx * pages_per_part
@@ -402,17 +400,15 @@ def auto_split_large_pdfs(saved_files: list, status_writer=None) -> list:
                 with open(str(part_path), "wb") as f:
                     writer.write(f)
 
-                part_size_mb = part_path.stat().st_size / (1024 * 1024)
-
                 result.append({
-                    "path":      str(part_path),
-                    "filename":  part_filename,
-                    "brand":     item["brand"],
-                    "akun":      item["akun"],
-                    "shift":     item["shift"],
-                    "group":     item["group"],
+                    "path":       str(part_path),
+                    "filename":   part_filename,
+                    "brand":      item["brand"],
+                    "akun":       item["akun"],
+                    "shift":      item["shift"],
+                    "group":      item["group"],
                     "split_from": item["filename"],
-                    "part":      f"{part_idx + 1}/{total_parts}",
+                    "part":       f"{part_idx + 1}/{total_parts}",
                 })
 
             if status_writer:
@@ -422,7 +418,6 @@ def auto_split_large_pdfs(saved_files: list, status_writer=None) -> list:
                 )
 
         except Exception as e:
-            # Kalau split gagal, pakai file asli saja
             if status_writer:
                 status_writer(f"⚠️ Split gagal untuk {item['filename']}: {e} — diproses langsung.")
             result.append(item)
@@ -466,8 +461,8 @@ def call_parser(saved_files: list, progress_bar=None, status_text=None):
     if not hasattr(hsd_parser, "process_pdf") or not callable(hsd_parser.process_pdf):
         raise RuntimeError("parser.py harus punya function process_pdf(pdf_path, progress_callback=None).")
 
-    all_rows   = []
-    all_errors = []
+    all_rows    = []
+    all_errors  = []
     total_files = len(saved_files)
 
     for file_idx, item in enumerate(saved_files, 1):
@@ -583,14 +578,15 @@ def login_page():
     with middle:
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-        logo_path = Path("HSD-Logo1.png")
-        if logo_path.exists():
-            st.image(str(logo_path), width=120)
+        logo_b64 = get_logo_b64()
+        if logo_b64:
             st.markdown(
-                """
-                <div class="hsd-card">
-                    <div style="font-size:32px; font-weight:900; text-align:center; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
-                    <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px; font-weight:700;">Operational System</div>
+                f"""
+                <div class="hsd-card" style="text-align:center; padding:28px 22px;">
+                    <img src="data:image/png;base64,{logo_b64}" width="100"
+                         style="margin-bottom:14px; display:block; margin-left:auto; margin-right:auto;">
+                    <div style="font-size:32px; font-weight:900; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
+                    <div style="font-size:14px; color:#6B7280; margin-top:4px; font-weight:700;">Operational System</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -598,10 +594,10 @@ def login_page():
         else:
             st.markdown(
                 """
-                <div class="hsd-card">
-                    <div style="font-size:42px; text-align:center;">🧄</div>
-                    <div style="font-size:32px; font-weight:900; text-align:center; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
-                    <div style="font-size:14px; text-align:center; color:#6B7280; margin-bottom:18px; font-weight:700;">Operational System</div>
+                <div class="hsd-card" style="text-align:center;">
+                    <div style="font-size:42px;">🧄</div>
+                    <div style="font-size:32px; font-weight:900; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
+                    <div style="font-size:14px; color:#6B7280; margin-top:4px; font-weight:700;">Operational System</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -628,9 +624,18 @@ def login_page():
 # =========================
 def render_sidebar():
     with st.sidebar:
-        logo_path = Path("HSD-Logo1.png")
-        if logo_path.exists():
-            st.image(str(logo_path), width=100)
+        logo_b64 = get_logo_b64()
+        if logo_b64:
+            st.markdown(
+                f"""
+                <div style="text-align:center; margin-bottom:6px;">
+                    <img src="data:image/png;base64,{logo_b64}" width="80"
+                         style="display:block; margin-left:auto; margin-right:auto;">
+                    <div style="font-size:16px; font-weight:900; color:#F9FAFB; margin-top:8px; letter-spacing:0.04em;">HSD AGENT</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
         else:
             st.markdown("# 🧄 HSD AGENT")
 
@@ -748,9 +753,8 @@ def gudang_page():
             )
             upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
-    # Hitung total & info ukuran file
-    total_files    = sum(len(p["files"] or []) for p in upload_map.values())
-    large_files    = []
+    total_files = sum(len(p["files"] or []) for p in upload_map.values())
+    large_files = []
     for payload in upload_map.values():
         for f in (payload["files"] or []):
             size_mb = len(f.getbuffer()) / (1024 * 1024)
@@ -810,12 +814,10 @@ def gudang_page():
 
             with st.status("⏳ Memproses PDF menjadi Excel...", expanded=True) as status:
 
-                # STEP 1: Simpan file
                 st.write("📥 Menyimpan file sementara...")
                 saved_files = save_uploaded_files(upload_map)
                 st.write(f"📄 Total PDF terupload: {len(saved_files)}")
 
-                # STEP 2: Auto-split PDF besar
                 has_large = any(
                     Path(item["path"]).stat().st_size / (1024 * 1024) > PDF_SPLIT_THRESHOLD_MB
                     for item in saved_files
@@ -833,7 +835,6 @@ def gudang_page():
                         f"✅ Optimasi selesai. Total bagian PDF siap diproses: {len(saved_files)}"
                     )
 
-                # STEP 3: Parser
                 st.write(f"📄 Memulai proses parser ({len(saved_files)} PDF)...")
                 parsed_data, parse_errors = call_parser(
                     saved_files,
@@ -850,7 +851,6 @@ def gudang_page():
                         for err in parse_errors[:200]:
                             st.write(err)
 
-                # STEP 4: Excel
                 status_text.info("📊 Membuat file Excel...")
                 st.write("📊 Membuat Excel rekap...")
                 excel_bytes = call_excel_writer(parsed_data, saved_files)
