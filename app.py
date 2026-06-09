@@ -129,12 +129,24 @@ st.markdown(
     }
 
     section[data-testid="stSidebar"] [role="radiogroup"] label {
-        background: #111827 !important;
-        border: 1px solid #1F2937 !important;
+        background: #1F2937 !important;
+        border: 1px solid #374151 !important;
         border-radius: 14px !important;
         padding: 10px 12px !important;
         margin-bottom: 8px !important;
         font-weight: 800 !important;
+        transition: background 0.2s !important;
+    }
+
+    section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+        background: linear-gradient(135deg, #F97316, #FDBA24) !important;
+        border: 1px solid #F97316 !important;
+    }
+
+    section[data-testid="stSidebar"] [role="radiogroup"] label:hover {
+        background: linear-gradient(135deg, #F97316, #FDBA24) !important;
+        border: 1px solid #F97316 !important;
+        opacity: 0.9 !important;
     }
 
     .hsd-card {
@@ -316,6 +328,40 @@ st.markdown(
         color: #9A3412;
         margin-top: 6px;
     }
+
+    /* Sidebar collapse/expand arrow */
+    button[data-testid="collapsedControl"],
+    button[data-testid="baseButton-headerNoPadding"] {
+        color: #FDBA24 !important;
+        background: transparent !important;
+    }
+
+    button[data-testid="collapsedControl"] svg,
+    button[data-testid="baseButton-headerNoPadding"] svg {
+        fill: #FDBA24 !important;
+        color: #FDBA24 !important;
+    }
+
+    /* Upload button orange after file uploaded */
+    div[data-testid="stFileUploaderDropzoneInstructions"] ~ div button,
+    div[data-testid="stFileUploader"] div[data-testid="stFileUploaderFile"] ~ div button {
+        background: linear-gradient(135deg, #F97316, #FDBA24) !important;
+        color: #FFFFFF !important;
+    }
+
+    /* Sidebar toggle button (the arrow to hide/show sidebar) */
+    [data-testid="stSidebarCollapseButton"] button,
+    [data-testid="stSidebarNavCollapseButton"] button,
+    section[data-testid="stSidebar"] button[kind="header"] {
+        color: #FDBA24 !important;
+    }
+
+    [data-testid="stSidebarCollapseButton"] svg,
+    [data-testid="stSidebarNavCollapseButton"] svg,
+    section[data-testid="stSidebar"] button[kind="header"] svg {
+        fill: #FDBA24 !important;
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
