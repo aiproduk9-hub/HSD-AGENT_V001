@@ -117,16 +117,22 @@ st.markdown(
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
-        background: #0C0C0E !important;
-        border-right: 1px solid rgba(255,255,255,0.05) !important;
+        background: transparent !important;
+        border-right: none !important;
         width: 260px !important;
         min-width: 260px !important;
         max-width: 260px !important;
+        padding: 12px 10px !important;
     }
 
     section[data-testid="stSidebar"] > div {
         background: #0C0C0E !important;
+        border-radius: 16px !important;
         padding: 24px 18px !important;
+        margin: 8px 6px 8px 8px !important;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.18) !important;
+        min-height: calc(100vh - 32px) !important;
+        box-sizing: border-box !important;
     }
 
     section[data-testid="stSidebar"] * {
@@ -174,14 +180,6 @@ st.markdown(
     }
 
     /* ── SIDEBAR ARROW — FIX VISIBILITAS ─────────────────── */
-    /*
-     * Masalah: tombol panah tutup/buka sidebar samar karena
-     * background-nya transparan menyatu dengan latar.
-     * Fix: beri background gelap + ikon orange agar selalu kontras
-     * di kedua kondisi (sidebar terbuka maupun tertutup).
-     */
-
-    /* Panah di DALAM sidebar (tombol tutup sidebar) */
     section[data-testid="stSidebar"] button[data-testid="stSidebarCollapseButton"],
     section[data-testid="stSidebar"] button[data-testid="stSidebarNavCollapseButton"],
     section[data-testid="stSidebar"] button[kind="header"] {
@@ -197,7 +195,6 @@ st.markdown(
         stroke: #F97316 !important;
     }
 
-    /* Panah di LUAR sidebar (tombol buka sidebar saat collapsed) */
     button[data-testid="stSidebarCollapseButton"],
     button[data-testid="stSidebarNavCollapseButton"],
     button[data-testid="collapsedControl"],
