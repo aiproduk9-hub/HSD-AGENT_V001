@@ -82,284 +82,495 @@ def get_logo_b64() -> str | None:
 
 
 # =========================
-# CSS
+# CSS — MODERN REDESIGN
 # =========================
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+    /* ── Base ─────────────────────────────────────────────── */
     html, body, [class*="css"] {
-        font-family: Calibri, Arial, sans-serif !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
     }
 
     .stApp {
-        background: #F7F1E8;
-        color: #111827;
+        background: #F5F5F7;
+        color: #09090B;
     }
 
     header[data-testid="stHeader"] {
-        background: rgba(247, 241, 232, 0.82) !important;
-        backdrop-filter: blur(10px);
+        background: rgba(245, 245, 247, 0.8) !important;
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid rgba(0,0,0,0.07);
     }
 
     .block-container {
-        padding-top: 2rem !important;
+        padding-top: 2.2rem !important;
         padding-left: 2.4rem !important;
         padding-right: 2.4rem !important;
-        max-width: 1400px !important;
+        max-width: 1440px !important;
     }
 
+    /* ── Sidebar ──────────────────────────────────────────── */
     section[data-testid="stSidebar"] {
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
-        background: #050505 !important;
-        border-right: 1px solid #111827 !important;
-        width: 290px !important;
-        min-width: 290px !important;
-        max-width: 290px !important;
+        background: #0C0C0E !important;
+        border-right: 1px solid rgba(255,255,255,0.05) !important;
+        width: 260px !important;
+        min-width: 260px !important;
+        max-width: 260px !important;
     }
 
     section[data-testid="stSidebar"] > div {
-        background: #050505 !important;
+        background: #0C0C0E !important;
         padding: 24px 18px !important;
     }
 
     section[data-testid="stSidebar"] * {
-        color: #F9FAFB !important;
+        color: #E4E4E7 !important;
     }
 
+    section[data-testid="stSidebar"] hr {
+        border-color: rgba(255,255,255,0.07) !important;
+        margin: 14px 0 !important;
+    }
+
+    section[data-testid="stSidebar"] .stCaption,
+    section[data-testid="stSidebar"] caption {
+        color: #71717A !important;
+        font-size: 12px !important;
+    }
+
+    /* Sidebar nav radio */
     section[data-testid="stSidebar"] [role="radiogroup"] label {
-        background: #1F2937 !important;
-        border: 1px solid #374151 !important;
-        border-radius: 14px !important;
-        padding: 10px 12px !important;
-        margin-bottom: 8px !important;
-        font-weight: 800 !important;
-        transition: background 0.2s !important;
+        background: rgba(255,255,255,0.03) !important;
+        border: 1px solid rgba(255,255,255,0.07) !important;
+        border-radius: 10px !important;
+        padding: 10px 14px !important;
+        margin-bottom: 6px !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+        transition: all 0.15s ease !important;
+        cursor: pointer !important;
     }
 
     section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
-        background: linear-gradient(135deg, #F97316, #FDBA24) !important;
-        border: 1px solid #F97316 !important;
+        background: linear-gradient(135deg, #F97316 0%, #FBBF24 100%) !important;
+        border-color: transparent !important;
+        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.35) !important;
+        color: #FFFFFF !important;
     }
 
-    section[data-testid="stSidebar"] [role="radiogroup"] label:hover {
-        background: linear-gradient(135deg, #F97316, #FDBA24) !important;
-        border: 1px solid #F97316 !important;
-        opacity: 0.9 !important;
+    section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) * {
+        color: #FFFFFF !important;
     }
 
+    section[data-testid="stSidebar"] [role="radiogroup"] label:hover:not(:has(input:checked)) {
+        background: rgba(255,255,255,0.07) !important;
+        border-color: rgba(255,255,255,0.12) !important;
+    }
+
+    /* ── SIDEBAR ARROW — FIX VISIBILITAS ─────────────────── */
+    /*
+     * Masalah: tombol panah tutup/buka sidebar samar karena
+     * background-nya transparan menyatu dengan latar.
+     * Fix: beri background gelap + ikon orange agar selalu kontras
+     * di kedua kondisi (sidebar terbuka maupun tertutup).
+     */
+
+    /* Panah di DALAM sidebar (tombol tutup sidebar) */
+    section[data-testid="stSidebar"] button[data-testid="stSidebarCollapseButton"],
+    section[data-testid="stSidebar"] button[data-testid="stSidebarNavCollapseButton"],
+    section[data-testid="stSidebar"] button[kind="header"] {
+        background: rgba(249, 115, 22, 0.12) !important;
+        border: 1px solid rgba(249, 115, 22, 0.25) !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+    }
+    section[data-testid="stSidebar"] button[data-testid="stSidebarCollapseButton"] svg,
+    section[data-testid="stSidebar"] button[data-testid="stSidebarNavCollapseButton"] svg,
+    section[data-testid="stSidebar"] button[kind="header"] svg {
+        fill: #F97316 !important;
+        stroke: #F97316 !important;
+    }
+
+    /* Panah di LUAR sidebar (tombol buka sidebar saat collapsed) */
+    button[data-testid="stSidebarCollapseButton"],
+    button[data-testid="stSidebarNavCollapseButton"],
+    button[data-testid="collapsedControl"],
+    button[data-testid="baseButton-headerNoPadding"] {
+        background: #1C1C1E !important;
+        border: 1px solid #3A3A3C !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+    }
+    button[data-testid="stSidebarCollapseButton"] svg,
+    button[data-testid="stSidebarNavCollapseButton"] svg,
+    button[data-testid="collapsedControl"] svg,
+    button[data-testid="baseButton-headerNoPadding"] svg {
+        fill: #F97316 !important;
+        stroke: #F97316 !important;
+        color: #F97316 !important;
+    }
+
+    /* ── Cards ────────────────────────────────────────────── */
     .hsd-card {
         background: #FFFFFF;
-        border: 1px solid #E5E7EB;
-        border-radius: 22px;
-        padding: 22px;
-        box-shadow: 0 8px 26px rgba(15, 23, 42, 0.07);
-        margin-bottom: 18px;
+        border: 1px solid #E4E4E7;
+        border-radius: 16px;
+        padding: 22px 24px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+        margin-bottom: 16px;
     }
 
+    /* ── Typography ───────────────────────────────────────── */
     .hsd-title {
-        font-size: 34px;
-        font-weight: 900;
-        color: #111827;
+        font-size: 30px;
+        font-weight: 800;
+        color: #09090B;
+        letter-spacing: -0.04em;
+        line-height: 1.15;
         margin-bottom: 4px;
-        letter-spacing: -0.03em;
     }
 
     .hsd-subtitle {
-        font-size: 15px;
-        color: #6B7280;
-        margin-bottom: 20px;
-        font-weight: 600;
+        font-size: 14px;
+        color: #71717A;
+        font-weight: 500;
+        margin-bottom: 0;
+        line-height: 1.5;
     }
 
-    .hsd-pill {
-        display: inline-block;
-        padding: 6px 12px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 900;
-        margin-right: 6px;
-    }
-
-    .pill-blue   { color: #1D4ED8; background: #DBEAFE; }
-    .pill-orange { color: #C2410C; background: #FFEDD5; }
-    .pill-dark   { color: #F9FAFB; background: #111827; }
-    .pill-green  { color: #166534; background: #DCFCE7; }
-
+    /* ── Metric Cards ─────────────────────────────────────── */
     .metric-card {
         background: #FFFFFF;
-        border: 1px solid #E5E7EB;
-        border-radius: 18px;
-        padding: 18px;
-        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+        border: 1px solid #E4E4E7;
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
 
     .metric-label {
-        font-size: 13px;
-        color: #6B7280;
-        margin-bottom: 5px;
-        font-weight: 700;
+        font-size: 11px;
+        font-weight: 600;
+        color: #A1A1AA;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 8px;
     }
 
     .metric-value {
-        font-size: 26px;
-        font-weight: 900;
-        color: #111827;
+        font-size: 22px;
+        font-weight: 800;
+        color: #09090B;
+        letter-spacing: -0.025em;
     }
 
-    div.stButton > button,
-    div[data-testid="stFormSubmitButton"] button,
-    div.stDownloadButton > button {
-        width: 100%;
-        background: #111827 !important;
+    /* ── Pills ────────────────────────────────────────────── */
+    .hsd-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 5px;
+        margin-bottom: 4px;
+        letter-spacing: 0.01em;
+    }
+
+    .pill-blue   { color: #1D4ED8; background: #EFF6FF; border: 1px solid #BFDBFE; }
+    .pill-teal   { color: #0E7490; background: #ECFEFF; border: 1px solid #A5F3FC; }
+    .pill-orange { color: #C2410C; background: #FFF7ED; border: 1px solid #FED7AA; }
+    .pill-dark   { color: #F4F4F5; background: #18181B; }
+    .pill-green  { color: #065F46; background: #ECFDF5; border: 1px solid #A7F3D0; }
+
+    /* ── Buttons ──────────────────────────────────────────── */
+
+    /* Secondary button (default / Reset) */
+    div.stButton > button {
+        background: #FFFFFF !important;
+        color: #3F3F46 !important;
+        border: 1.5px solid #D4D4D8 !important;
+        border-radius: 10px !important;
+        padding: 0.65rem 1rem !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+        transition: all 0.15s ease !important;
+        letter-spacing: -0.01em !important;
+    }
+
+    div.stButton > button * {
+        color: #3F3F46 !important;
+        font-weight: 600 !important;
+    }
+
+    div.stButton > button:hover {
+        background: #FAFAFA !important;
+        border-color: #A1A1AA !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.09) !important;
+    }
+
+    /* Primary button (Proses PDF) */
+    button[kind="primary"] {
+        background: linear-gradient(135deg, #F97316 0%, #FBBF24 100%) !important;
         color: #FFFFFF !important;
         border: 0 !important;
-        border-radius: 14px !important;
-        padding: 0.85rem 1rem !important;
-        font-weight: 900 !important;
+        border-radius: 12px !important;
+        padding: 0.8rem 1.5rem !important;
+        font-weight: 700 !important;
         font-size: 15px !important;
-        box-shadow: 0 8px 18px rgba(17,24,39,0.18) !important;
-    }
-
-    div.stButton > button *,
-    div[data-testid="stFormSubmitButton"] button *,
-    div.stDownloadButton > button * {
-        color: #FFFFFF !important;
-        font-weight: 900 !important;
-    }
-
-    div.stButton > button:hover,
-    div[data-testid="stFormSubmitButton"] button:hover,
-    div.stDownloadButton > button:hover {
-        background: #F97316 !important;
-        color: #FFFFFF !important;
-        transform: translateY(-1px);
-    }
-
-    button[kind="primary"] {
-        background: linear-gradient(135deg, #F97316, #FDBA24) !important;
-        color: #FFFFFF !important;
-        border: 2px solid #FFEDD5 !important;
-        border-radius: 16px !important;
-        font-weight: 900 !important;
-        font-size: 16px !important;
-        box-shadow: 0 10px 24px rgba(249, 115, 22, 0.35) !important;
+        box-shadow: 0 4px 16px rgba(249, 115, 22, 0.38) !important;
+        transition: all 0.15s ease !important;
+        letter-spacing: -0.01em !important;
     }
 
     button[kind="primary"] * {
         color: #FFFFFF !important;
-        font-weight: 900 !important;
-    }
-
-    button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #EA580C, #F59E0B) !important;
-        color: #FFFFFF !important;
-        transform: translateY(-1px);
-    }
-
-    div[data-testid="stFileUploader"] {
-        background: #FFFFFF;
-        border: 1px dashed #CBD5E1;
-        border-radius: 18px;
-        padding: 12px;
-    }
-
-    div[data-testid="stFileUploader"] section {
-        background: #F8FAFC !important;
-        border-radius: 14px !important;
-    }
-
-    div[data-testid="stFileUploader"] * {
-        color: #111827 !important;
-        opacity: 1 !important;
         font-weight: 700 !important;
     }
 
-    div[data-testid="stFileUploader"] button {
-        background: #111827 !important;
+    button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #EA580C 0%, #F59E0B 100%) !important;
+        box-shadow: 0 6px 22px rgba(249, 115, 22, 0.48) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    button[kind="primary"]:disabled,
+    button[kind="primary"][disabled] {
+        background: #D4D4D8 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        cursor: not-allowed !important;
+        opacity: 0.6 !important;
+    }
+
+    /* Download button */
+    div.stDownloadButton > button,
+    div[data-testid="stFormSubmitButton"] button {
+        width: 100% !important;
+        background: #09090B !important;
         color: #FFFFFF !important;
+        border: 0 !important;
         border-radius: 12px !important;
-        font-weight: 900 !important;
+        padding: 0.8rem 1rem !important;
+        font-weight: 700 !important;
+        font-size: 15px !important;
+        box-shadow: 0 4px 14px rgba(9,9,11,0.22) !important;
+        transition: all 0.15s ease !important;
+    }
+
+    div.stDownloadButton > button *,
+    div[data-testid="stFormSubmitButton"] button * {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+    }
+
+    div.stDownloadButton > button:hover {
+        background: #18181B !important;
+        box-shadow: 0 6px 20px rgba(9,9,11,0.3) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    /* ── File Uploader ────────────────────────────────────── */
+    div[data-testid="stFileUploader"] {
+        background: #FAFAFA;
+        border: 1.5px dashed #D4D4D8;
+        border-radius: 12px;
+        padding: 8px;
+        transition: border-color 0.15s ease;
+    }
+
+    div[data-testid="stFileUploader"]:hover {
+        border-color: #F97316;
+    }
+
+    div[data-testid="stFileUploader"] section {
+        background: transparent !important;
+        border-radius: 10px !important;
+    }
+
+    div[data-testid="stFileUploader"] * {
+        color: #3F3F46 !important;
+        font-weight: 500 !important;
+        opacity: 1 !important;
+    }
+
+    div[data-testid="stFileUploader"] button {
+        background: #09090B !important;
+        color: #FFFFFF !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+        border: 0 !important;
     }
 
     div[data-testid="stFileUploader"] button * {
         color: #FFFFFF !important;
     }
 
-    div[data-testid="stProgress"] > div > div {
-        background-color: #F97316 !important;
-    }
-
-    .small-muted {
-        font-size: 13px;
-        color: #6B7280;
-        font-weight: 700;
-    }
-
-    .success-box {
-        background:#DCFCE7;
-        border:1px solid #86EFAC;
-        border-radius:18px;
-        padding:18px;
-        font-weight:900;
-        color:#166534;
-        margin-top:12px;
-    }
-
+    /* ── Upload Section Headers ───────────────────────────── */
     .upload-section-header {
-        font-size: 16px;
-        font-weight: 900;
-        color: #1F3864;
-        background: #DBEAFE;
-        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 700;
         padding: 8px 14px;
-        margin-bottom: 8px;
-        margin-top: 4px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        margin-top: 2px;
+        letter-spacing: 0.01em;
+    }
+
+    .hdr-jkt {
+        color: #1D4ED8;
+        background: #EFF6FF;
+        border: 1px solid #BFDBFE;
+    }
+
+    .hdr-sby {
+        color: #0E7490;
+        background: #ECFEFF;
+        border: 1px solid #A5F3FC;
+    }
+
+    .hdr-hss {
+        color: #B45309;
+        background: #FFFBEB;
+        border: 1px solid #FDE68A;
+    }
+
+    /* ── Progress bar ─────────────────────────────────────── */
+    div[data-testid="stProgress"] > div {
+        background: #E4E4E7 !important;
+        border-radius: 99px !important;
+    }
+
+    div[data-testid="stProgress"] > div > div {
+        background: linear-gradient(90deg, #F97316, #FBBF24) !important;
+        border-radius: 99px !important;
+        transition: width 0.3s ease !important;
+    }
+
+    /* ── Info/Status boxes ────────────────────────────────── */
+    .success-box {
+        background: #F0FDF4;
+        border: 1px solid #BBF7D0;
+        border-radius: 12px;
+        padding: 14px 18px;
+        font-weight: 600;
+        font-size: 14px;
+        color: #166534;
+        margin-top: 12px;
     }
 
     .split-info-box {
         background: #FFF7ED;
         border: 1px solid #FED7AA;
-        border-radius: 14px;
+        border-radius: 12px;
         padding: 12px 16px;
         font-size: 13px;
-        font-weight: 700;
+        font-weight: 500;
         color: #9A3412;
-        margin-top: 6px;
+        margin-top: 8px;
+        line-height: 1.6;
     }
 
-    /* Sidebar collapse/expand arrow */
-    button[data-testid="collapsedControl"],
-    button[data-testid="baseButton-headerNoPadding"] {
-        color: #FDBA24 !important;
-        background: transparent !important;
+    .small-muted {
+        font-size: 13px;
+        color: #71717A;
+        font-weight: 500;
+        line-height: 1.65;
     }
 
-    button[data-testid="collapsedControl"] svg,
-    button[data-testid="baseButton-headerNoPadding"] svg {
-        fill: #FDBA24 !important;
-        color: #FDBA24 !important;
+    /* ── Streamlit native alert overrides ─────────────────── */
+    div[data-testid="stAlert"] {
+        border-radius: 12px !important;
+        font-weight: 500 !important;
+        font-size: 14px !important;
     }
 
-    /* Upload button orange after file uploaded */
-    div[data-testid="stFileUploaderDropzoneInstructions"] ~ div button,
-    div[data-testid="stFileUploader"] div[data-testid="stFileUploaderFile"] ~ div button {
-        background: linear-gradient(135deg, #F97316, #FDBA24) !important;
-        color: #FFFFFF !important;
+    /* ── Expander ─────────────────────────────────────────── */
+    details summary {
+        font-weight: 600 !important;
+        font-size: 14px !important;
     }
 
-    /* Sidebar toggle button (the arrow to hide/show sidebar) */
-    [data-testid="stSidebarCollapseButton"] button,
-    [data-testid="stSidebarNavCollapseButton"] button,
-    section[data-testid="stSidebar"] button[kind="header"] {
-        color: #FDBA24 !important;
+    /* ── Status widget ────────────────────────────────────── */
+    div[data-testid="stStatusWidget"] {
+        border-radius: 12px !important;
+        font-weight: 500 !important;
     }
 
-    [data-testid="stSidebarCollapseButton"] svg,
-    [data-testid="stSidebarNavCollapseButton"] svg,
-    section[data-testid="stSidebar"] button[kind="header"] svg {
-        fill: #FDBA24 !important;
+    /* ── Sidebar Keluar button ────────────────────────────── */
+    section[data-testid="stSidebar"] div.stButton > button {
+        background: rgba(255,255,255,0.05) !important;
+        color: #E4E4E7 !important;
+        border: 1px solid rgba(255,255,255,0.10) !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+    }
+
+    section[data-testid="stSidebar"] div.stButton > button * {
+        color: #E4E4E7 !important;
+    }
+
+    section[data-testid="stSidebar"] div.stButton > button:hover {
+        background: rgba(249,115,22,0.15) !important;
+        border-color: rgba(249,115,22,0.3) !important;
+        color: #F97316 !important;
+    }
+
+    section[data-testid="stSidebar"] div.stButton > button:hover * {
+        color: #F97316 !important;
+    }
+
+    /* ── Clock card ───────────────────────────────────────── */
+    .clock-card {
+        background: #FFFFFF;
+        border: 1px solid #E4E4E7;
+        border-radius: 14px;
+        padding: 14px 18px;
+        text-align: right;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    .clock-time {
+        font-size: 22px;
+        font-weight: 800;
+        color: #09090B;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+    }
+
+    .clock-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #A1A1AA;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    /* ── Upload info banner ───────────────────────────────── */
+    .upload-banner {
+        background: #FFFFFF;
+        border: 1px solid #E4E4E7;
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+    }
+
+    .upload-banner-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: #09090B;
+        letter-spacing: -0.02em;
+        margin-bottom: 6px;
     }
 
     </style>
@@ -628,11 +839,11 @@ def login_page():
         if logo_b64:
             st.markdown(
                 f"""
-                <div class="hsd-card" style="text-align:center; padding:28px 22px;">
-                    <img src="data:image/png;base64,{logo_b64}" width="100"
-                         style="margin-bottom:14px; display:block; margin-left:auto; margin-right:auto;">
-                    <div style="font-size:32px; font-weight:900; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
-                    <div style="font-size:14px; color:#6B7280; margin-top:4px; font-weight:700;">Operational System</div>
+                <div class="hsd-card" style="text-align:center; padding:36px 28px;">
+                    <img src="data:image/png;base64,{logo_b64}" width="88"
+                         style="margin-bottom:16px; display:block; margin-left:auto; margin-right:auto; border-radius:18px;">
+                    <div style="font-size:28px; font-weight:900; color:#09090B; letter-spacing:-0.04em;">HSD AGENT</div>
+                    <div style="font-size:13px; color:#71717A; margin-top:4px; font-weight:500;">Operational System</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -640,18 +851,18 @@ def login_page():
         else:
             st.markdown(
                 """
-                <div class="hsd-card" style="text-align:center;">
-                    <div style="font-size:42px;">🧄</div>
-                    <div style="font-size:32px; font-weight:900; color:#111827; letter-spacing:-0.04em;">HSD AGENT</div>
-                    <div style="font-size:14px; color:#6B7280; margin-top:4px; font-weight:700;">Operational System</div>
+                <div class="hsd-card" style="text-align:center; padding:36px 28px;">
+                    <div style="font-size:48px; margin-bottom:12px;">🧄</div>
+                    <div style="font-size:28px; font-weight:900; color:#09090B; letter-spacing:-0.04em;">HSD AGENT</div>
+                    <div style="font-size:13px; color:#71717A; margin-top:4px; font-weight:500;">Operational System</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
         with st.form("login_form"):
-            pin = st.text_input("Masukkan PIN", type="password", placeholder="PIN divisi")
-            login = st.form_submit_button("🔐 Masuk")
+            pin = st.text_input("Masukkan PIN", type="password", placeholder="PIN divisi kamu")
+            login = st.form_submit_button("Masuk →")
 
         if login:
             if pin in ROLES:
@@ -662,7 +873,7 @@ def login_page():
             else:
                 st.error("PIN salah. Coba lagi.")
 
-        st.caption("PIN Gudang: 1234 | Konten: 2345 | Live: 3456 | Manager/BOD: 0000")
+        st.caption("Gudang: 1234 · Konten: 2345 · Live: 3456 · Manager/BOD: 0000")
 
 
 # =========================
@@ -674,23 +885,41 @@ def render_sidebar():
         if logo_b64:
             st.markdown(
                 f"""
-                <div style="text-align:center; margin-bottom:6px;">
-                    <img src="data:image/png;base64,{logo_b64}" width="80"
-                         style="display:block; margin-left:auto; margin-right:auto;">
-                    <div style="font-size:16px; font-weight:900; color:#F9FAFB; margin-top:8px; letter-spacing:0.04em;">HSD AGENT</div>
+                <div style="text-align:center; margin-bottom:4px; padding-bottom:4px;">
+                    <img src="data:image/png;base64,{logo_b64}" width="72"
+                         style="display:block; margin:0 auto; border-radius:14px;">
+                    <div style="font-size:15px; font-weight:800; color:#F4F4F5; margin-top:10px; letter-spacing:0.03em;">HSD AGENT</div>
+                    <div style="font-size:11px; color:#71717A; font-weight:500; margin-top:2px;">Operational System</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
         else:
-            st.markdown("# 🧄 HSD AGENT")
+            st.markdown(
+                """
+                <div style="text-align:center; margin-bottom:4px;">
+                    <div style="font-size:36px;">🧄</div>
+                    <div style="font-size:15px; font-weight:800; color:#F4F4F5; margin-top:8px;">HSD AGENT</div>
+                    <div style="font-size:11px; color:#71717A; font-weight:500;">Operational System</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-        st.caption("Operational System")
         st.markdown("---")
 
         role = st.session_state.role or "-"
-        st.markdown(f"**Role aktif:** {role}")
-        st.caption(now_wib().strftime("%A, %d %B %Y • %H:%M WIB"))
+        st.markdown(
+            f"""
+            <div style="margin-bottom:4px;">
+                <span style="font-size:11px; color:#71717A; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Role aktif</span><br>
+                <span style="font-size:14px; font-weight:700; color:#F4F4F5;">{role}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.caption(now_wib().strftime("%A, %d %B %Y · %H:%M WIB"))
+
         st.markdown("---")
 
         if role == "Manager/BOD":
@@ -702,7 +931,12 @@ def render_sidebar():
         if st.session_state.selected_menu in available_menu:
             default_index = available_menu.index(st.session_state.selected_menu)
 
-        selected = st.radio("Menu Divisi", available_menu, index=default_index)
+        st.markdown(
+            "<div style='font-size:11px; font-weight:600; color:#71717A; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;'>Menu Divisi</div>",
+            unsafe_allow_html=True,
+        )
+
+        selected = st.radio("", available_menu, index=default_index, label_visibility="collapsed")
         st.session_state.selected_menu = selected
 
         st.markdown("---")
@@ -724,10 +958,10 @@ def page_header(title: str, subtitle: str):
     with top_right:
         st.markdown(
             f"""
-            <div class="hsd-card" style="padding:16px; text-align:right;">
-                <div class="small-muted">Waktu sekarang</div>
-                <div style="font-weight:900; font-size:20px; color:#111827;">{now_wib().strftime('%H:%M')}</div>
-                <div class="small-muted">WIB</div>
+            <div class="clock-card">
+                <div class="clock-label">Waktu sekarang</div>
+                <div class="clock-time">{now_wib().strftime('%H:%M')}</div>
+                <div class="clock-label">WIB</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -743,25 +977,29 @@ def gudang_page():
         "Upload PDF resi HSD Jakarta / HSD Surabaya / HSS, proses otomatis, lalu download Excel rekap.",
     )
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
     c1, c2, c3 = st.columns(3)
-    with c1: render_metric("Limit Upload", "2GB")
-    with c2: render_metric("Format", "PDF → Excel")
+    with c1: render_metric("Limit Upload", "2 GB")
+    with c2: render_metric("Format Output", "PDF → Excel")
     with c3: render_metric("Zona Waktu", "WIB")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(
         """
-        <div class="hsd-card">
-            <span class="hsd-pill pill-blue">HSD Jakarta</span>
-            <span class="hsd-pill pill-green">HSD Surabaya</span>
-            <span class="hsd-pill pill-orange">HSS</span>
-            <span class="hsd-pill pill-dark">Gudang</span>
-            <div style="font-size:20px; font-weight:900; color:#111827; margin-top:12px;">Upload PDF Resi</div>
+        <div class="upload-banner">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+                <span class="hsd-pill pill-blue">🏙️ HSD Jakarta</span>
+                <span class="hsd-pill pill-teal">🌊 HSD Surabaya</span>
+                <span class="hsd-pill pill-orange">⭐ HSS</span>
+                <span class="hsd-pill pill-dark">Gudang</span>
+            </div>
+            <div class="upload-banner-title">Upload PDF Resi</div>
             <div class="small-muted">
                 Upload sesuai brand, cabang, dan shift. Bisa upload lebih dari satu file di setiap bagian.<br>
-                PDF besar (&gt;10 MB) akan dipotong otomatis — tidak perlu split manual.<br>
-                <b>Order offline tidak masuk sistem</b> — isi manual di Excel setelah download.
+                PDF besar (&gt;10 MB) dipotong otomatis — tidak perlu split manual.<br>
+                <strong style="color:#09090B;">Order offline tidak masuk sistem</strong> — isi manual di Excel setelah download.
             </div>
         </div>
         """,
@@ -773,7 +1011,7 @@ def gudang_page():
     col_jkt, col_sby, col_hss = st.columns(3)
 
     with col_jkt:
-        st.markdown("<div class='upload-section-header'>🏙️ HSD Jakarta</div>", unsafe_allow_html=True)
+        st.markdown("<div class='upload-section-header hdr-jkt'>🏙️ HSD Jakarta</div>", unsafe_allow_html=True)
         for label, brand, shift in UPLOAD_GROUPS[:3]:
             files = st.file_uploader(
                 label, type=["pdf"], accept_multiple_files=True,
@@ -782,7 +1020,7 @@ def gudang_page():
             upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
     with col_sby:
-        st.markdown("<div class='upload-section-header'>🌊 HSD Surabaya</div>", unsafe_allow_html=True)
+        st.markdown("<div class='upload-section-header hdr-sby'>🌊 HSD Surabaya</div>", unsafe_allow_html=True)
         for label, brand, shift in UPLOAD_GROUPS[3:6]:
             files = st.file_uploader(
                 label, type=["pdf"], accept_multiple_files=True,
@@ -791,7 +1029,7 @@ def gudang_page():
             upload_map[label] = {"brand": brand, "shift": shift, "files": files}
 
     with col_hss:
-        st.markdown("<div class='upload-section-header'>⭐ HSS</div>", unsafe_allow_html=True)
+        st.markdown("<div class='upload-section-header hdr-hss'>⭐ HSS</div>", unsafe_allow_html=True)
         for label, brand, shift in UPLOAD_GROUPS[6:]:
             files = st.file_uploader(
                 label, type=["pdf"], accept_multiple_files=True,
@@ -810,40 +1048,52 @@ def gudang_page():
     st.markdown("<br>", unsafe_allow_html=True)
 
     if total_files > 0:
-        st.success(f"✅ Total file terupload: {total_files} PDF. Siap diproses.")
+        st.success(f"✅ {total_files} file PDF siap diproses.")
         if large_files:
             info_lines = "".join(
-                f"<li>{name} ({size:.1f} MB) → akan dipotong otomatis</li>"
+                f"<li style='margin:2px 0;'>{name} ({size:.1f} MB) — akan dipotong otomatis</li>"
                 for name, size in large_files
             )
             st.markdown(
                 f"""<div class="split-info-box">
-                    ✂️ <b>{len(large_files)} PDF besar terdeteksi</b> — akan dioptimalkan sebelum diproses:<br>
-                    <ul style="margin:6px 0 0 0;">{info_lines}</ul>
+                    ✂️ <strong>{len(large_files)} PDF besar terdeteksi</strong> — akan dioptimalkan sebelum diproses:
+                    <ul style="margin:6px 0 0 16px; padding:0;">{info_lines}</ul>
                 </div>""",
                 unsafe_allow_html=True,
             )
     else:
-        st.info("Belum ada PDF terupload.")
+        st.markdown(
+            """
+            <div style="background:#FAFAFA; border:1px solid #E4E4E7; border-radius:12px;
+                        padding:14px 18px; font-size:14px; color:#71717A; font-weight:500;
+                        display:flex; align-items:center; gap:8px;">
+                📂 Belum ada PDF terupload — mulai upload di kolom di atas.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    reset_col, process_col = st.columns([1, 2])
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    reset_col, spacer_col, process_col = st.columns([1.2, 0.2, 2])
 
     with reset_col:
-        reset_upload = st.button("🔄 Reset PDF / Ganti File Baru")
+        reset_upload = st.button("🔄 Reset / Ganti File")
 
     with process_col:
         process = st.button(
-            "🚀 PROSES PDF JADI EXCEL",
+            "🚀 Proses PDF Jadi Excel",
             disabled=(total_files == 0),
-            help="Upload PDF dulu agar tombol bisa dipakai.",
+            help="Upload minimal 1 PDF dulu.",
             type="primary",
+            use_container_width=True,
         )
 
     if reset_upload:
         st.session_state.upload_reset_counter += 1
         st.session_state.last_excel_bytes    = None
         st.session_state.last_excel_filename = None
-        st.success("Upload sudah dikosongkan. Silakan masukkan PDF baru.")
+        st.success("Upload dikosongkan. Silakan masukkan PDF baru.")
         st.rerun()
 
     if process:
@@ -910,7 +1160,7 @@ def gudang_page():
             st.markdown(
                 """
                 <div class="success-box">
-                    ✅ Excel berhasil dibuat. Klik tombol download di bawah.
+                    ✅ Excel berhasil dibuat — klik tombol download di bawah.
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -922,8 +1172,9 @@ def gudang_page():
             st.caption("Kalau error terjadi di parser/excel_writer, kirim isi error-nya.")
 
     if st.session_state.last_excel_bytes:
+        st.markdown("<br>", unsafe_allow_html=True)
         st.download_button(
-            label="⬇️ Download Excel Hasil Rekap",
+            label="⬇️ Download Excel Rekap",
             data=st.session_state.last_excel_bytes,
             file_name=st.session_state.last_excel_filename or "rekap_resi_hsd.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -936,10 +1187,11 @@ def gudang_page():
 # =========================
 def konten_page():
     page_header("Konten", "Area kerja divisi konten HSD.")
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
         """
         <div class="hsd-card">
-            <div style="font-size:20px; font-weight:900; color:#111827;">Coming Soon</div>
+            <div style="font-size:18px; font-weight:800; color:#09090B; letter-spacing:-0.02em; margin-bottom:6px;">Coming Soon</div>
             <div class="small-muted">Kalender konten, ide script, approval, dan database asset.</div>
         </div>
         """,
@@ -952,10 +1204,11 @@ def konten_page():
 # =========================
 def live_page():
     page_header("Live", "Area kerja divisi live HSD.")
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
         """
         <div class="hsd-card">
-            <div style="font-size:20px; font-weight:900; color:#111827;">Coming Soon</div>
+            <div style="font-size:18px; font-weight:800; color:#09090B; letter-spacing:-0.02em; margin-bottom:6px;">Coming Soon</div>
             <div class="small-muted">Jadwal live, target GMV, host, produk, dan evaluasi performa.</div>
         </div>
         """,
