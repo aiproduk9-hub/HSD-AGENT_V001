@@ -85,16 +85,20 @@ def _build_sku_lookup():
     add(["BG-DRINK-PEACH-7-BOTOL", "BG-Drink-Peach-7-Botol"], "BG Drink Peach 7 Botol")
     add(["BG-DRINK-MIX-7-BOTOL", "BG-Drink-Mix-7-Botol"], "BG Drink Mix 7 Botol")
 
-    # FIX: tambah BGH-MULTI-FL, BGH-MULTI-FLORA, dan variasi singkatan lainnya
-    add(["BGH-MULTI-FLORAL-1-BOTOL", "BGH-MULTI-FLORAL", "MADU-MULTI-FLORAL",
-         "BGH-MULTI", "BGH-MULTI-1-BOTOL",
-         "BGH-MULTI-FL", "BGH-MULTI-FL-1-BOTOL",
-         "BGH-MULTI-FLORA", "BGH-MULTI-FLORA-1-BOTOL"], "BG Madu Multi Floral")
-    # FIX: tambah BGH-BNG-KURMA sebagai variasi singkatan Bunga Kurma
-    add(["BGH-BUNGA-KURMA-1-BOTOL", "BGH-BUNGA-KURMA", "MADU-BUNGA-KURMA",
-         "BGH-BUNGA", "BGH-BUNGA-1-BOTOL",
-         "BGH-BNG-KURMA", "BGH-BNG-KURMA-1-BOTOL",
-         "BGH-KURMA", "BGH-KURMA-1-BOTOL"], "BG Madu Kurma")
+    add([
+        "BGH-MULTI-FLORAL-1-BOTOL", "BGH-MULTI-FLORAL", "MADU-MULTI-FLORAL",
+        "BGH-MULTI", "BGH-MULTI-1-BOTOL",
+        "BGH-MULTI-FL", "BGH-MULTI-FL-1-BOTOL",
+        "BGH-MULTI-FLORA", "BGH-MULTI-FLORA-1-BOTOL",
+    ], "BG Madu Multi Floral")
+
+    add([
+        "BGH-BUNGA-KURMA-1-BOTOL", "BGH-BUNGA-KURMA", "MADU-BUNGA-KURMA",
+        "BGH-BUNGA", "BGH-BUNGA-1-BOTOL",
+        "BGH-BNG-KURMA", "BGH-BNG-KURMA-1-BOTOL",
+        "BGH-KURMA", "BGH-KURMA-1-BOTOL",
+    ], "BG Madu Kurma")
+
     add(["BLACKGARLIC-LANANG-HSD-100G", "BLACKGARLIC-LANANG-BAWANG-HSD-100G", "BLACKGARLIC-HSD-100G"], "Black Garlic 100gr")
 
     return m
@@ -143,6 +147,10 @@ def lookup_sku(raw_sku, fallback_nama=""):
     return None, None
 
 
+# =========================
+# TEXT UTILITIES
+# =========================
+
 def clean(s):
     if s is None:
         return ""
@@ -169,6 +177,54 @@ def to_int(v, default=0):
     except Exception:
         return default
 
+
+def _extract_text_smart(page):
+    """
+    Ekstrak teks dari halaman PDF.
+    Jika halaman terdeteksi rusak karena barcode SPX ECO, coba crop
+    area bersih (hilangkan bagian barcode di atas).
+    """
+    text = page.extract_text() or ""
+
+    # Hitung karakter sampah dari barcode
+    garbage = (
+        text.count("\uFFFE")
+        + text.count("\x00")
+        + text.count("\uFFFD")
+        + len(re.findall(r"[\x80-\x9F]", text))
+    )
+
+    # Halaman bersih: langsung kembalikan
+    if garbage <= 15:
+        return text
+
+    # Halaman rusak: coba crop dari atas ke bawah bertahap
+    try:
+        w = float(page.width)
+        h = float(page.height)
+        for top_frac in [0.18, 0.28, 0.38, 0.48]:
+            try:
+                cropped_text = page.crop((0, h * top_frac, w, h)).extract_text() or ""
+                ct_garbage = (
+                    cropped_text.count("\uFFFE")
+                    + cropped_text.count("\x00")
+                    + cropped_text.count("\uFFFD")
+                )
+                if len(cropped_text.strip()) > 60 and ct_garbage < garbage:
+                    # Pertahankan 300 karakter pertama asli (biasanya ada nomor resi di sana)
+                    header = text[:300]
+                    return header + "\n" + cropped_text
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return text
+
+
+# =========================
+# MERGE BROKEN LINES (Perbaikan SKU terpotong antar kolom/baris)
+# =========================
 
 def merge_broken_lines(text):
     if not text:
@@ -197,7 +253,7 @@ def merge_broken_lines(text):
         lambda m: f"BGH-MULTI-FLORAL-1-BOTOL __CCQTY{m.group(1)}__",
         text, flags=re.I
     )
-    # POLA 3b: BGH- MULTI FL QTY \n ... FL- \n N-BOTOL  (versi singkatan)
+    # POLA 3b: BGH- MULTI FL QTY \n ... FL- \n N-BOTOL (versi singkatan)
     text = re.sub(
         r"BGH-\s+MULTI\s+FL\s+(\d+)\n[^\n]*FL-\n[^\n]*\d+-BOTOL",
         lambda m: f"BGH-MULTI-FL-1-BOTOL __CCQTY{m.group(1)}__",
@@ -215,7 +271,7 @@ def merge_broken_lines(text):
         lambda m: f"BG-{m.group(1)}GR-{m.group(4)}-BOTOL __CCQTY{m.group(2)}__",
         text, flags=re.I
     )
-    # POLA 6: BG-100GR- QTY \n ... SKU  (SPXID, SKU prefix sudah sebagian)
+    # POLA 6: BG-100GR- QTY \n ... SKU (SPXID, SKU prefix sudah sebagian)
     text = re.sub(
         r"(BG-(?:100|220|500)GR)-\s+(?:100|220|500)\s*GR[^\n]*?(\d+)\s*\n[^\n]*\bSKU\b",
         lambda m: f"{m.group(1)}-SKU __CCQTY{m.group(2)}__",
@@ -239,7 +295,7 @@ def merge_broken_lines(text):
         lambda m: f"BG-{m.group(1)}GR-{m.group(4)}-BOTOL __CCQTY{m.group(2)}__",
         text, flags=re.I
     )
-    # POLA 10 (HSS): BG-SIZEGR- QTY \n ... N-BOTOL  (ada kolom Lokasi di tengah)
+    # POLA 10 (HSS): BG-SIZEGR- QTY \n ... N-BOTOL (ada kolom Lokasi di tengah)
     text = re.sub(
         r"(BG-(?:100|220|500)GR)-\s+(\d+)\s*\n[^\n]*(\d+)-BOTOL",
         lambda m: f"{m.group(1)}-{m.group(3)}-BOTOL __CCQTY{m.group(2)}__",
@@ -247,7 +303,7 @@ def merge_broken_lines(text):
     )
 
     # ============================================================
-    # FIX STANDAR
+    # FIX STANDAR — SKU terpotong antar baris biasa
     # ============================================================
     fixes = [
         (r"BG-(100|220|500)GR-\s*\n\s*(\d+)-BOTOL", r"BG-\1GR-\2-BOTOL"),
@@ -278,6 +334,10 @@ def merge_broken_lines(text):
         text = re.sub(pattern, repl, text, flags=re.I)
     return text
 
+
+# =========================
+# DETEKSI PLATFORM & KURIR
+# =========================
 
 def detect(text):
     t = text.upper()
@@ -332,12 +392,16 @@ def get_resi(text):
         r"\b(0046\d{8,12})\b",
         r"\b(00296\d{7,12})\b",
         r"\b(JJ\d{8,15})\b",
-        r"\b(11\d{12,14})\b",
+        # Shopee Express format 11003xxxxxx — lebih spesifik daripada 11\d{12,14}
+        r"\b(110\d{12,13})\b",
+        # Fallback Shopee numerik panjang
+        r"\b(11\d{12,13})\b",
     ]
     for p in patterns:
         m = re.search(p, text, re.I)
         if m:
             return clean(m.group(1))
+    # Fallback ke nomor pesanan hanya jika tidak ada pilihan lain
     m = re.search(r"(?:No\.?\s*Pesanan|Nomor\s*Order)\s*[::]?\s*([A-Z0-9]{8,})", text, re.I)
     if m:
         return clean(m.group(1))
@@ -435,6 +499,10 @@ def get_alamat(text):
     return ""
 
 
+# =========================
+# PRODUK — LOOKUP & RESOLVE
+# =========================
+
 # Mapping multi-botol ke jumlah botol satuan
 _MULTI_BOTOL = {
     "Black Garlic 100gr x2": ("Black Garlic 100gr", 2),
@@ -459,7 +527,6 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
     nama, qty_override = lookup_sku(sku_raw, nama_produk_raw)
     if nama:
         qty_final = qty_override if qty_override else qty_raw
-        # Expand multi-botol: qty_raw resi x jumlah_per_SKU
         if nama in _MULTI_BOTOL:
             nama_base, multiplier = _MULTI_BOTOL[nama]
             return nama_base, qty_final * multiplier
@@ -500,7 +567,6 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
         return "Hampers Natal", qty_raw
     if "HAMPERS" in text:
         return "Hampers HSD", qty_raw
-    # FIX: tambah pengecekan -FL sebagai singkatan FLORAL
     if "MULTI" in text and ("FLORAL" in text or "FLORA" in text or
                              text.endswith("-FL") or "-FL-" in text or
                              text.endswith("FL")):
@@ -530,10 +596,53 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
     return None, qty_raw
 
 
+def _extract_qty_from_line(line):
+    """
+    Ambil angka qty dari baris tabel.
+    Strategi: cari angka yang muncul SETELAH token SKU terakhir di baris,
+    yang tidak diikuti huruf (bukan satuan seperti 100GR, 220ML).
+    Tidak ada batas maksimum — mendukung pesanan grosir berapapun.
+    """
+    # Cari posisi akhir SKU terakhir di baris
+    sku_end = 0
+    for m in re.finditer(
+        r"(?:BGH|BG|BLACKGARLIC|MADU|BOX)-[A-Z0-9\-]+", line, re.I
+    ):
+        sku_end = max(sku_end, m.end())
+
+    if sku_end > 0:
+        after_sku = line[sku_end:]
+        # Cari angka standalone setelah SKU (bukan diikuti huruf = bukan satuan)
+        for m in re.finditer(r"\b(\d{1,4})\b", after_sku):
+            num = int(m.group(1))
+            if num < 1:
+                continue
+            end_pos = m.end()
+            # Pastikan tidak diikuti huruf (misal "100GR" → bukan qty)
+            if end_pos >= len(after_sku) or not after_sku[end_pos].isalpha():
+                return num
+
+    # Fallback: ambil angka terakhir di baris yang tidak diikuti huruf
+    for m in reversed(list(re.finditer(r"\b(\d{1,4})\b", line))):
+        num = int(m.group(1))
+        end_pos = m.end()
+        if end_pos >= len(line) or not line[end_pos].isalpha():
+            # Abaikan angka ukuran produk yang berdiri sendiri
+            if num not in (84, 100, 220, 500, 1000):
+                return num
+
+    return 1
+
+
 def extract_sku_candidates(text):
+    """
+    Temukan semua kandidat SKU dalam teks.
+    Mencakup semua prefix yang dikenal: BGH-, MADU-, BG-, BLACKGARLIC-, BOX-.
+    """
     text = merge_broken_lines(text)
     patterns = [
         r"BGH-[A-Z0-9\-]+",
+        r"MADU-[A-Z0-9\-]+",              # Prefix Madu langsung
         r"BLACKGARLIC-[A-Z0-9\-]+",
         r"BG-DRINK-[A-Z0-9\-]+",
         r"BG-PROMO-[A-Z0-9\-]+",
@@ -543,8 +652,7 @@ def extract_sku_candidates(text):
         r"BG-84GR-[A-Z0-9\-]+",
         r"BOX-HAMPERS-[A-Z0-9\-]+",
         r"BG-3IN1",
-        r"BG-3-IN-1",
-        r"MADU-[A-Z0-9\-]+",
+        r"BG-3-IN-1",                      # Variasi ejaan
     ]
     found = []
     for p in patterns:
@@ -586,33 +694,44 @@ def build_product_row(platform, courier, layanan, resi, pesanan, penerima, alama
     }
 
 
+# =========================
+# PARSER TABEL PER PLATFORM
+# =========================
+
 def parse_tiktok_table(text):
     products = []
     t = merge_broken_lines(text)
-    has_tiktok_header = "Product Name" in t and "Seller SKU" in t
-    if not has_tiktok_header:
-        # Fallback: cek format alternatif TikTok
-        has_tiktok_header = ("Product Name" in t or "Nama Produk" in t) and re.search(r"(?:Order\s*ID|TT\s*Order)", t, re.I) is not None
-    if not has_tiktok_header:
+
+    # Header check lebih fleksibel: cukup salah satu header yang ada
+    has_tt_header = (
+        ("Product Name" in t or "Nama Produk" in t)
+        and ("Seller SKU" in t or "SKU" in t)
+    )
+    if not has_tt_header:
         return products
+
     m = re.search(
-        r"Product Name\s+SKU\s+Seller SKU\s+Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|$)",
+        r"(?:Product Name|Nama Produk)[\s\S]*?(?:Seller\s+)?SKU\s+Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|$)",
         t, re.I,
     )
     if not m:
-        # Coba format alternatif
+        # Fallback: cari blok setelah header
         m = re.search(
-            r"(?:Product Name|Nama Produk)\s+SKU\s+(?:Seller SKU\s+)?Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|Total:|$)",
+            r"Product Name\s+SKU\s+Seller SKU\s+Qty\s*\n([\s\S]+?)(?:Qty Total:|Order ID:|$)",
             t, re.I,
         )
     if not m:
         return products
+
     block = m.group(1)
     lines = [clean(x) for x in block.split("\n") if clean(x)]
     current_name = []
+
     for line in lines:
+        # Pola lengkap: nama variasi SKU qty
         mm = re.search(
-            r"^(.*?)\s*(Default|ORI[\s\-]PROMO[\s\-]\d|ORIGINAL|PEACH|100[\s\-]GR|220[\s\-]GR|500[\s\-]GR)?\s+((?:BGH|BG|BLACKGARLIC|BOX)-[A-Z0-9\-]+)\s+(\d{1,3})$",
+            r"^(.*?)\s*(Default|ORI[\s\-]PROMO[\s\-]\d|ORIGINAL|PEACH|100[\s\-]GR|220[\s\-]GR|500[\s\-]GR)?\s+"
+            r"((?:BGH|BG|BLACKGARLIC|BOX|MADU)-[A-Z0-9\-]+)\s+(\d{1,4})$",
             line, re.I,
         )
         if mm:
@@ -626,7 +745,12 @@ def parse_tiktok_table(text):
             products.append({"nama_produk": name or prefix or sku, "sku": sku, "variasi": variasi, "qty": qty})
             current_name = []
             continue
-        mm2 = re.search(r"^((?:BGH|BG|BLACKGARLIC|BOX)-[A-Z0-9\-]+)\s+(\d{1,3})$", line, re.I)
+
+        # Pola ringkas: SKU qty
+        mm2 = re.search(
+            r"^((?:BGH|BG|BLACKGARLIC|BOX|MADU)-[A-Z0-9\-]+)\s+(\d{1,4})$",
+            line, re.I,
+        )
         if mm2:
             sku  = normalize_sku(mm2.group(1))
             qty  = to_int(mm2.group(2), 1)
@@ -634,10 +758,14 @@ def parse_tiktok_table(text):
             products.append({"nama_produk": name or sku, "sku": sku, "variasi": "", "qty": qty})
             current_name = []
             continue
+
         if not re.match(r"^\d+$", line) and len(line) > 2:
             current_name.append(line)
+
     if products:
         return products
+
+    # Fallback: ambil semua SKU dari teks
     skus = extract_sku_candidates(t)
     for sku in skus:
         products.append({"nama_produk": sku, "sku": sku, "variasi": "", "qty": 1})
@@ -645,6 +773,14 @@ def parse_tiktok_table(text):
 
 
 def parse_shopee_table(text):
+    """
+    Parser tabel Shopee.
+    Perbaikan utama:
+    - Proses baris per baris (bukan blok penuh), sehingga setiap SKU
+      mendapat qty-nya sendiri (fix multi-SKU bug).
+    - Gunakan _extract_qty_from_line yang tidak ada batas cap 20.
+    - CCQTY dicari per baris, bukan seluruh blok.
+    """
     products = []
     t = merge_broken_lines(text)
 
@@ -657,57 +793,52 @@ def parse_shopee_table(text):
     if not has_header:
         return products
 
+    # Ekstrak blok tabel
     m = re.search(
-        r"(?:#\s*)?Nama Produk\s+SKU[\s\S]*?(?:Variasi|Lokasi)?\s*Qty\s*\n([\s\S]+?)(?:Pesan:|Pengirim:|CASHLESS|$)",
+        r"(?:#\s*)?Nama Produk\s+SKU[\s\S]*?(?:Variasi|Lokasi)?\s*Qty\s*\n([\s\S]+?)"
+        r"(?:Pesan:|Pengirim:|CASHLESS|$)",
         t, re.I,
     )
     block = m.group(1) if m else t
     lines = [clean(x) for x in block.split("\n") if clean(x)]
-    block_text = "\n".join(lines)
-    skus = extract_sku_candidates(block_text)
 
-    for sku in skus:
-        qty = 1
-        # FIX: cari __CCQTY__ yang terkait dengan SKU ini, bukan yang pertama di blok
-        sku_upper = sku.upper()
-        block_upper = block_text.upper()
-        sku_pos = block_upper.find(sku_upper)
+    name_buffer = []
 
-        if sku_pos >= 0:
-            # Cari CCQTY dalam 200 karakter setelah SKU ini
-            after_sku = block_text[sku_pos:sku_pos + 200]
-            ccqty_m = re.search(r"__CCQTY(\d+)__", after_sku)
-            if ccqty_m:
-                qty = to_int(ccqty_m.group(1), 1)
+    for line in lines:
+        # Hentikan di bagian footer resi
+        if re.search(r"(?:Pengirim|CASHLESS|Pesan:|Total Qty|Batas Kirim)", line, re.I):
+            break
+
+        # --- Cek CCQTY per baris (format Shopee cross-column 11003/SPXID) ---
+        ccqty_m = re.search(r"__CCQTY(\d+)__", line)
+        qty_cc = to_int(ccqty_m.group(1), 1) if ccqty_m else None
+        line_clean = re.sub(r"__CCQTY\d+__", "", line).strip()
+
+        skus_in_line = extract_sku_candidates(line_clean)
+
+        if skus_in_line:
+            if qty_cc is not None:
+                qty = qty_cc
             else:
-                qty = 0
-                sku_regex = re.escape(sku).replace(r"\-", r"[\s\-]*").replace("-", r"[\s\-]*")
-                for line in lines:
-                    m_sku = re.search(sku_regex, line, re.I)
-                    if m_sku:
-                        tail_line = line[m_sku.end():]
-                        tail_clean = re.sub(r"(100|220|500|84)\s*GR", "", tail_line, flags=re.I)
-                        nums = re.findall(r"\b(\d{1,4})\b", tail_clean)
-                        if nums:
-                            qty += int(nums[-1])
-                        else:
-                            qty += 1
-                if qty == 0:
-                    qty = 1
+                qty = _extract_qty_from_line(line_clean)
+
+            name = " ".join(name_buffer).strip()
+            for sku in skus_in_line:
+                products.append({
+                    "nama_produk": name or sku,
+                    "sku": sku,
+                    "variasi": "",
+                    "qty": qty,
+                })
+            name_buffer = []
         else:
-            # Fallback: SKU tidak ditemukan per posisi, coba CCQTY generic
-            ccqty_m = re.search(r"__CCQTY(\d+)__", block_text)
-            if ccqty_m:
-                qty = to_int(ccqty_m.group(1), 1)
-
-        name = ""
-        for line in lines:
-            if "BG-" in normalize_sku(line) or "BGH-" in normalize_sku(line) or "__CCQTY" in line:
-                break
-            if not re.match(r"^\d+$", line):
-                name += " " + line
-
-        products.append({"nama_produk": clean(name) or sku, "sku": sku, "variasi": "", "qty": qty})
+            # Akumulasi sebagai nama produk
+            if line_clean and not re.match(r"^\d+$", line_clean):
+                if not re.search(
+                    r"(?:Pengirim|CASHLESS|Pesan:|Total|Batas|Penerima|Variasi|Lokasi)",
+                    line_clean, re.I
+                ):
+                    name_buffer.append(line_clean)
 
     return products
 
@@ -740,34 +871,33 @@ def parse_blibli_table(text):
         return products
     skus = extract_sku_candidates(t)
     for sku in skus:
-        qty = 1
-        token_text = normalize_sku(t)
-        pos = token_text.find(sku)
-        if pos >= 0:
-            tail = token_text[pos + len(sku): pos + len(sku) + 100]
-            nums = re.findall(r"\b\d{1,3}\b", tail)
-            if nums:
-                qty = to_int(nums[0], 1)
+        qty = _extract_qty_from_line(
+            t[max(0, t.upper().find(sku.upper()) - 5): t.upper().find(sku.upper()) + len(sku) + 60]
+        )
         products.append({"nama_produk": sku, "sku": sku, "variasi": "", "qty": qty})
     return products
 
 
 def parse_generic_products(text):
+    """Fallback universal: ambil semua SKU dari teks apapun."""
     products = []
     t = merge_broken_lines(text)
     skus = extract_sku_candidates(t)
     for sku in skus:
-        qty = 1
+        # Cari qty di sekitar SKU (100 karakter setelahnya)
         token_text = normalize_sku(t)
         pos = token_text.find(sku)
+        qty = 1
         if pos >= 0:
-            tail = token_text[pos + len(sku): pos + len(sku) + 70]
-            nums = re.findall(r"\b\d{1,3}\b", tail)
-            if nums:
-                qty = to_int(nums[0], 1)
+            region = t[pos: pos + len(sku) + 80]
+            qty = _extract_qty_from_line(region)
         products.append({"nama_produk": sku, "sku": sku, "variasi": "", "qty": qty})
     return products
 
+
+# =========================
+# PARSER HALAMAN
+# =========================
 
 def parse_page(text):
     text = merge_broken_lines(text or "")
@@ -806,30 +936,31 @@ def parse_page(text):
 
 
 def _has_sku_in_text(text):
-    # FIX: tambah MADU- prefix untuk deteksi SKU madu
-    if re.search(r"BG-(?:100|220|500)GR|BGH-|BG-DRINK|BG-3IN1|BG-3-IN-1|BOX-HAMPERS|BLACKGARLIC-|BG-84GR|MADU-(?:MULTI|BUNGA)", text, re.I):
+    """Deteksi apakah halaman mengandung SKU produk (untuk page merge logic)."""
+    if re.search(
+        r"BG-(?:100|220|500)GR|BGH-|BG-DRINK|BG-3IN1|BOX-HAMPERS|BLACKGARLIC-|BG-84GR|MADU-",
+        text, re.I
+    ):
         return True
+    # Shopee cross-column: BG- dengan spasi sebelum ukuran
     if re.search(r"BG-\s+(?:100|220|500)\s*GR", text, re.I):
         return True
     return False
 
 
-def _is_product_continuation(text):
-    """Cek apakah halaman ini adalah lanjutan tabel produk (tidak punya resi sendiri)."""
-    if _has_sku_in_text(text):
-        return True
-    t = text.upper()
-    # Keyword tabel produk yang menandakan halaman lanjutan
-    continuation_keywords = [
-        "QTY TOTAL", "TOTAL QTY", "NAMA PRODUK", "PRODUCT NAME",
-        "SELLER SKU", "BOTOL", "VARIASI", "ITEM VARIANT",
-    ]
-    if any(kw in t for kw in continuation_keywords):
-        return True
-    return False
-
+# =========================
+# PROSES PDF UTAMA
+# =========================
 
 def process_pdf(pdf_path, progress_callback=None):
+    """
+    Baca seluruh PDF dan kembalikan daftar baris produk.
+
+    Perbaikan:
+    - Gunakan _extract_text_smart untuk halaman barcode-rusak (SPX ECO).
+    - Page merge hingga 5 halaman ke depan (resi pecah banyak halaman).
+    - Dedup aman untuk baris dengan resi kosong (pakai index halaman).
+    """
     all_rows = []
     errors = []
     seen = set()
@@ -839,50 +970,56 @@ def process_pdf(pdf_path, progress_callback=None):
         i = 0
         while i < total:
             try:
-                text = pdf.pages[i].extract_text() or ""
+                text = _extract_text_smart(pdf.pages[i])
                 resi = get_resi(text)
 
-                if not resi:
-                    # Halaman tanpa resi — skip (kemungkinan sudah di-merge sebelumnya)
-                    if progress_callback:
-                        progress_callback(i + 1, total)
-                    i += 1
-                    continue
-
-                # FIX: Look ahead — merge halaman lanjutan yang tidak punya resi sendiri
-                # Support sampai 4 halaman per order (sebelumnya cuma 2)
-                last_merged = i
-                for j in range(i + 1, min(i + 5, total)):
-                    next_text = pdf.pages[j].extract_text() or ""
-                    next_resi = get_resi(next_text)
-                    if next_resi:
-                        break  # Halaman ini adalah order baru
-                    if _is_product_continuation(next_text):
+                # Page merge: kalau halaman ini punya resi tapi belum ada SKU,
+                # baca halaman berikutnya (sampai 5 halaman ke depan)
+                if resi and not _has_sku_in_text(text):
+                    pages_merged = 0
+                    for lookahead in range(1, 6):
+                        if i + lookahead >= total:
+                            break
+                        next_text = _extract_text_smart(pdf.pages[i + lookahead])
                         text = text + "\n" + next_text
-                        last_merged = j
+                        pages_merged = lookahead
                         if progress_callback:
-                            progress_callback(j + 1, total)
-                    else:
-                        break
+                            progress_callback(i + lookahead, total)
+                        # Stop merge kalau halaman berikutnya sudah punya resi baru
+                        # (artinya ini order baru, bukan lanjutan)
+                        next_resi = get_resi(next_text)
+                        if _has_sku_in_text(next_text):
+                            i += lookahead
+                            break
+                        if next_resi and next_resi != resi:
+                            # Halaman berikutnya adalah order baru — jangan merge
+                            i += lookahead - 1
+                            break
+                    _ = pages_merged  # suppress unused warning
 
                 page_rows = parse_page(text)
                 for r in page_rows:
-                    resi_val = r.get("no_resi", "")
-                    if not resi_val:
-                        continue  # FIX: skip row tanpa resi agar dedup tidak clash
-                    key = (resi_val, r.get("sku", ""), r.get("nama_produk", ""), str(r.get("qty", "")))
+                    r_resi = r.get("no_resi", "")
+                    r_sku  = r.get("sku", "")
+                    r_nama = r.get("nama_produk", "")
+                    r_qty  = str(r.get("qty", ""))
+
+                    if r_resi:
+                        # Resi ada: dedup normal
+                        key = (r_resi, r_sku, r_nama, r_qty)
+                    else:
+                        # Resi kosong: pakai index halaman agar tidak over-dedup
+                        key = (f"__page_{i}__", r_sku, r_nama, r_qty)
+
                     if key not in seen:
                         seen.add(key)
                         all_rows.append(r)
 
-                if progress_callback:
-                    progress_callback(i + 1, total)
-                i = last_merged + 1  # Lompat ke halaman setelah yang terakhir di-merge
-
             except Exception as e:
                 errors.append(f"Halaman {i + 1}: {e}")
-                if progress_callback:
-                    progress_callback(i + 1, total)
-                i += 1
+
+            if progress_callback:
+                progress_callback(i + 1, total)
+            i += 1
 
     return all_rows, errors
