@@ -379,7 +379,8 @@ def detect(text):
 
 def get_resi(text):
     patterns = [
-        r"No\.\s*Resi\s*[::]?\s*(\d{10,15})",
+        r"No\.\s*Resi\s*[::]?\s*(\d{10,17})",
+        r"(?:Nomor|No\.?)\s*Resi\s*[::]?\s*(\d{10,17})",   # "Nomor Resi: 12345..."
         r"Resi\s*[::]?\s*(SPXID\d{8,18})",
         r"Air\s*waybill\s*[::]?\s*([A-Z]{2}\d{8,15})",
         r"\b(JX\d{10})\b",
@@ -392,10 +393,10 @@ def get_resi(text):
         r"\b(0046\d{8,12})\b",
         r"\b(00296\d{7,12})\b",
         r"\b(JJ\d{8,15})\b",
-        # Shopee Express format 11003xxxxxx — lebih spesifik daripada 11\d{12,14}
-        r"\b(110\d{12,13})\b",
-        # Fallback Shopee numerik panjang
-        r"\b(11\d{12,13})\b",
+        # Shopee Express format 11003xxxxxx (15-17 digit)
+        r"\b(110\d{12,14})\b",
+        # Fallback Shopee numerik panjang (14-16 digit)
+        r"\b(11\d{12,14})\b",
     ]
     for p in patterns:
         m = re.search(p, text, re.I)
