@@ -598,10 +598,18 @@ def resolve_nama_produk(sku_raw, nama_produk_raw, qty_raw):
 
 def _extract_qty_from_line(line):
     """
-    Ambil angka qty dari baris tabel.
-    Strategi: cari angka yang muncul SETELAH token SKU terakhir di baris,
-    yang tidak diikuti huruf (bukan satuan seperti 100GR, 220ML).
-    Tidak ada batas maksimum — mendukung pesanan grosir berapapun.
+    Ambil angka qty dari baris tabel Shopee/TikTok/dll.
+
+    Format tabel Shopee: [No] [Nama Produk] [SKU] [Variasi] [Qty]
+    Contoh nyata: "BG-220GR-1- 220 GR 1"
+      → SKU = BG-220GR-1
+      → Variasi = 220 GR   (ukuran produk, BUKAN qty)
+      → Qty = 1            (angka TERAKHIR = kolom paling kanan)
+
+    Strategi:
+    1. Cari semua angka setelah SKU yang valid (tidak diikuti huruf langsung)
+    2. Ambil angka TERAKHIR — itu kolom Qty di tabel
+    3. Kalau tidak ada angka setelah SKU, fallback ke angka terakhir di baris
     """
     # Cari posisi akhir SKU terakhir di baris
     sku_end = 0
@@ -612,22 +620,26 @@ def _extract_qty_from_line(line):
 
     if sku_end > 0:
         after_sku = line[sku_end:]
-        # Cari angka standalone setelah SKU (bukan diikuti huruf = bukan satuan)
+        # Kumpulkan SEMUA angka valid setelah SKU (bukan diikuti huruf langsung)
+        candidates = []
         for m in re.finditer(r"\b(\d{1,4})\b", after_sku):
             num = int(m.group(1))
             if num < 1:
                 continue
             end_pos = m.end()
-            # Pastikan tidak diikuti huruf (misal "100GR" → bukan qty)
+            # Pastikan tidak diikuti huruf (misal "220GR" → bukan qty)
             if end_pos >= len(after_sku) or not after_sku[end_pos].isalpha():
-                return num
+                candidates.append(num)
+        if candidates:
+            # Ambil TERAKHIR: kolom Qty selalu paling kanan
+            return candidates[-1]
 
     # Fallback: ambil angka terakhir di baris yang tidak diikuti huruf
+    # dan bukan ukuran produk berdiri sendiri
     for m in reversed(list(re.finditer(r"\b(\d{1,4})\b", line))):
         num = int(m.group(1))
         end_pos = m.end()
         if end_pos >= len(line) or not line[end_pos].isalpha():
-            # Abaikan angka ukuran produk yang berdiri sendiri
             if num not in (84, 100, 220, 500, 1000):
                 return num
 
